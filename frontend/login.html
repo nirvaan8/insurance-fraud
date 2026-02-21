@@ -1,66 +1,38 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Login</title>
-
-  <style>
-    body {
-      font-family: Arial;
-      background: #f4f6f9;
-      text-align: center;
-      padding: 100px;
-    }
-
-    .box {
-      background: white;
-      padding: 30px;
-      width: 300px;
-      margin: auto;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-
-    input, button {
-      margin: 10px;
-      padding: 10px;
-      width: 90%;
-    }
-
-    button {
-      background: green;
-      color: white;
-      border: none;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
 <div class="box">
   <h2>Login</h2>
 
-  <input type="text" id="username" placeholder="Username" />
-  <input type="password" id="password" placeholder="Password" />
+  <input id="username" placeholder="Username">
+  <input id="password" type="password" placeholder="Password">
 
   <button onclick="login()">Login</button>
+
+  <p><a href="register.html">Register</a></p>
 </div>
 
 <script>
 function login() {
-  const user = document.getElementById("username").value;
-  const pass = document.getElementById("password").value;
+  const u = username.value.trim();
+  const p = password.value.trim();
 
-  // Dummy users (RBAC)
-  if (user === "admin" && pass === "123") {
-    localStorage.setItem("role", "admin");
-    window.location.href = "index.html";
-  } 
-  else if (user === "analyst" && pass === "123") {
-    localStorage.setItem("role", "analyst");
-    window.location.href = "index.html";
-  } 
-  else {
-    alert("Invalid credentials");
+  if(!u || !p) return alert("Fill fields");
+
+  const users = JSON.parse(localStorage.getItem("users")) || [];
+
+  const found = users.find(x => x.username===u && x.password===p);
+
+  if(found){
+    localStorage.setItem("role", found.role);
+    localStorage.setItem("username", found.username);
+    window.location.href="index.html";
+  } else {
+    alert("Invalid");
   }
 }
 </script>

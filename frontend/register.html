@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="box">
+  <h2>Register</h2>
+
+  <input id="user" placeholder="Username">
+  <input id="pass" type="password" placeholder="Password">
+
+  <select id="role">
+    <option value="admin">Admin</option>
+    <option value="analyst">Analyst</option>
+  </select>
+
+  <button onclick="register()">Register</button>
+</div>
+
+<script>
+function register(){
+  const u=user.value.trim();
+  const p=pass.value.trim();
+  const r=role.value;
+
+  if(!u||!p) return alert("Fill all");
+
+  let users=JSON.parse(localStorage.getItem("users"))||[];
+
+  if(users.find(x=>x.username===u)){
+    return alert("User exists");
+  }
+
+  users.push({username:u,password:p,role:r});
+  localStorage.setItem("users",JSON.stringify(users));
+
+  alert("Registered");
+  window.location.href="login.html";
+}
+</script>
+
+</body>
+</html>

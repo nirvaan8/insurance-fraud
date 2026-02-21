@@ -1,69 +1,128 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap');
+
 body {
-  font-family: Arial, sans-serif;
-  background: #f4f6f9;
   margin: 0;
-  padding: 0;
+  font-family: 'Inter', sans-serif;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  color: #e2e8f0;
 }
 
+/* Topbar */
+.topbar {
+  position: fixed;
+  top: 15px;
+  right: 30px;
+}
+
+.topbar button {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(45deg, #ff4d4d, #ff1a1a);
+  color: white;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.topbar button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 10px #ff4d4d;
+}
+
+/* Main container */
 .container {
-  width: 500px;
-  margin: 80px auto;
-  background: white;
+  width: 650px;
+  margin: 100px auto;
   padding: 30px;
-  border-radius: 10px;
-  box-shadow: 0 0 15px rgba(0,0,0,0.1);
+  border-radius: 15px;
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(15px);
+  box-shadow: 0 0 30px rgba(0,0,0,0.5);
   text-align: center;
 }
 
-h2 {
-  margin-bottom: 20px;
-  color: #333;
-}
-
-input, button {
-  padding: 10px;
-  margin: 10px;
-  width: 80%;
-  border-radius: 5px;
-  border: 1px solid #ccc;
-}
-
-button {
-  background: #007bff;
-  color: white;
+/* Inputs */
+input {
+  padding: 12px;
+  border-radius: 10px;
   border: none;
+  margin: 10px;
+  background: #020617;
+  color: white;
+}
+
+/* Buttons */
+button {
+  padding: 12px 18px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(45deg, #00c6ff, #0072ff);
+  color: white;
   cursor: pointer;
+  transition: 0.3s;
 }
 
 button:hover {
-  background: #0056b3;
+  transform: scale(1.05);
+  box-shadow: 0 0 15px #00c6ff;
 }
 
+/* Table */
 table {
   width: 100%;
   margin-top: 20px;
   border-collapse: collapse;
-}
-
-th, td {
-  padding: 10px;
-  border: 1px solid #ddd;
+  background: rgba(255,255,255,0.05);
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 th {
-  background: #007bff;
-  color: white;
+  background: rgba(255,255,255,0.1);
 }
 
-/* Risk colors */
-.high {
-  background-color: #ffcccc;
+td, th {
+  padding: 12px;
 }
 
-.medium {
-  background-color: #fff3cd;
+tr {
+  transition: 0.3s;
 }
 
-.low {
-  background-color: #d4edda;
+tr:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+/* Chart */
+canvas {
+  margin-top: 20px;
+}
+
+/* Login/Register box */
+.box {
+  width: 320px;
+  margin: 120px auto;
+  padding: 30px;
+  border-radius: 15px;
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(15px);
+  text-align: center;
+  box-shadow: 0 0 25px rgba(0,0,0,0.4);
+}
+
+/* Background animation */
+body::before {
+  content: "";
+  position: fixed;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(0,198,255,0.15), transparent);
+  animation: moveBg 12s infinite linear;
+  z-index: -1;
+}
+
+@keyframes moveBg {
+  0% { transform: translate(-10%, -10%); }
+  50% { transform: translate(10%, 10%); }
+  100% { transform: translate(-10%, -10%); }
 }
