@@ -1,38 +1,51 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <link rel="stylesheet" href="style.css">
+  <title>Login</title>
+  <link rel="stylesheet" href="auth.css">
 </head>
 <body>
 
-<div class="box">
-  <h2>Login</h2>
+<div class="container">
 
-  <input id="username" placeholder="Username">
-  <input id="password" type="password" placeholder="Password">
+  <div class="left">
+    <h1>FRAUD<span>SYS</span></h1>
+    <p>AI-powered fraud detection system using analytics and machine learning.</p>
+    <div class="live">● SYSTEM ACTIVE - MONITORING</div>
+  </div>
 
-  <button onclick="login()">Login</button>
+  <div class="login-box">
+    <h2>SECURE ACCESS</h2>
 
-  <p><a href="register.html">Register</a></p>
+    <input type="text" id="email" placeholder="Email">
+    <input type="password" id="password" placeholder="Password">
+
+    <button onclick="login()">LOGIN</button>
+
+    <p class="link">
+      New user? <a href="register.html">Register</a>
+    </p>
+  </div>
+
 </div>
 
 <script>
-function login() {
-  const u = username.value.trim();
-  const p = password.value.trim();
+function login(){
+  let email = document.getElementById("email").value;
+  let password = document.getElementById("password").value;
 
-  if(!u || !p) return alert("Fill fields");
+  let savedUser = JSON.parse(localStorage.getItem("user"));
 
-  const users = JSON.parse(localStorage.getItem("users")) || [];
+  if(!email || !password){
+    alert("Enter all fields ❌");
+    return;
+  }
 
-  const found = users.find(x => x.username===u && x.password===p);
-
-  if(found){
-    localStorage.setItem("role", found.role);
-    localStorage.setItem("username", found.username);
-    window.location.href="index.html";
+  if(savedUser && email === savedUser.email && password === savedUser.password){
+    localStorage.setItem("role", savedUser.role);
+    window.location.href = "index.html";
   } else {
-    alert("Invalid");
+    alert("Invalid credentials ❌");
   }
 }
 </script>

@@ -1,0 +1,132 @@
+/* GLOBAL */
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  color: white;
+
+  /* 🔥 ANIMATED BACKGROUND */
+  animation: glowBg 6s infinite alternate;
+}
+
+/* 🔥 BACKGROUND ANIMATION */
+@keyframes glowBg {
+  from { background: radial-gradient(circle at left, #1a0033, #000); }
+  to { background: radial-gradient(circle at left, #2a0055, #000); }
+}
+
+/* LAYOUT */
+.container {
+  display: flex;
+  height: 100vh;
+  align-items: center;
+  justify-content: center;
+  gap: 100px;
+  padding: 0 60px;
+}
+
+/* LEFT SIDE */
+.left {
+  max-width: 450px;
+}
+
+.left h1 {
+  font-size: 48px;
+  margin-bottom: 10px;
+}
+
+.left span {
+  color: #a855f7;
+}
+
+.left p {
+  color: #ccc;
+  line-height: 1.5;
+}
+
+.live {
+  margin-top: 20px;
+  color: #a855f7;
+  font-size: 14px;
+}
+
+/* LOGIN BOX */
+.login-box {
+  position: relative;
+  width: 350px;
+  padding: 35px;
+  border-radius: 15px;
+
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+
+  box-shadow: 0 0 25px rgba(168, 85, 247, 0.4);
+}
+
+/* 🔥 GLOW BORDER */
+.login-box::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 15px;
+  background: linear-gradient(45deg, #9333ea, transparent);
+  z-index: -1;
+  filter: blur(12px);
+}
+
+/* TITLE */
+.login-box h2 {
+  margin-bottom: 20px;
+}
+
+/* INPUTS */
+.login-box input {
+  width: 100%;
+  padding: 12px;
+  margin: 10px 0;
+
+  border: none;
+  outline: none;
+  border-radius: 8px;
+
+  background: rgba(255,255,255,0.1);
+  color: white;
+}
+
+/* BUTTON */
+.login-box button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 15px;
+
+  background: linear-gradient(45deg, #9333ea, #c084fc);
+  border: none;
+  border-radius: 8px;
+
+  color: white;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.login-box button:hover {
+  box-shadow: 0 0 15px #a855f7;
+}
+
+/* LINK */
+.link {
+  margin-top: 15px;
+  font-size: 14px;
+  color: #aaa;
+  text-align: center;
+}
+.login-box select {
+  width: 100%;
+  padding: 12px;
+  margin: 10px 0;
+
+  border-radius: 8px;
+  border: none;
+  outline: none;
+
+  background: rgba(255,255,255,0.1);
+  color: white;
+}

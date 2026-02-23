@@ -1,43 +1,57 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <link rel="stylesheet" href="style.css">
+  <title>Register</title>
+  <link rel="stylesheet" href="auth.css">
 </head>
 <body>
 
-<div class="box">
-  <h2>Register</h2>
+<div class="container">
 
-  <input id="user" placeholder="Username">
-  <input id="pass" type="password" placeholder="Password">
+  <div class="left">
+    <h1>FRAUD<span>SYS</span></h1>
+    <p>Create your secure account to access fraud analytics dashboard.</p>
+    <div class="live">● SYSTEM READY</div>
+  </div>
 
-  <select id="role">
-    <option value="admin">Admin</option>
-    <option value="analyst">Analyst</option>
-  </select>
+  <div class="login-box">
+    <h2>REGISTER</h2>
 
-  <button onclick="register()">Register</button>
+    <input type="text" id="email" placeholder="Email">
+    <input type="password" id="password" placeholder="Password">
+
+    <!-- ROLE -->
+    <select id="role">
+      <option value="admin">Admin</option>
+      <option value="analyst">Analyst</option>
+    </select>
+
+    <button onclick="register()">REGISTER</button>
+
+    <p class="link">
+      Already user? <a href="login.html">Login</a>
+    </p>
+  </div>
+
 </div>
 
 <script>
 function register(){
-  const u=user.value.trim();
-  const p=pass.value.trim();
-  const r=role.value;
+  let email = document.getElementById("email").value;
+  let password = document.getElementById("password").value;
+  let role = document.getElementById("role").value;
 
-  if(!u||!p) return alert("Fill all");
-
-  let users=JSON.parse(localStorage.getItem("users"))||[];
-
-  if(users.find(x=>x.username===u)){
-    return alert("User exists");
+  if(!email || !password){
+    alert("Fill all fields ❌");
+    return;
   }
 
-  users.push({username:u,password:p,role:r});
-  localStorage.setItem("users",JSON.stringify(users));
+  let user = { email, password, role };
 
-  alert("Registered");
-  window.location.href="login.html";
+  localStorage.setItem("user", JSON.stringify(user));
+
+  alert("Registered Successfully ✅");
+  window.location.href = "login.html";
 }
 </script>
 
