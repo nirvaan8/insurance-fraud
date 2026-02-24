@@ -1,197 +1,163 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Fraud Intelligence Dashboard</title>
-
-  <!-- CSS -->
+  <title>Fraud Dashboard</title>
   <link rel="stylesheet" href="style.css">
-
-  <!-- Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-
-  <!-- Chart -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-
 <body>
 
-<div class="dashboard">
+<div class="sidebar">
+  <h2>FraudSys</h2>
+  <ul>
+    <li class="active">Dashboard</li>
+    <li onclick="logout()">Logout</li>
+  </ul>
+</div>
 
-  <!-- 🔥 SIDEBAR -->
-  <div class="sidebar">
-    <h2><i class="fa-solid fa-shield-halved"></i> FraudSys</h2>
+<div class="main">
 
-    <ul>
-      <li class="active"><i class="fa-solid fa-chart-line"></i> Dashboard</li>
-      <li><i class="fa-solid fa-file"></i> Reports</li>
-    </ul>
-
-    <p id="roleDisplay"></p>
-
-    <button onclick="toggleTheme()">
-      <i class="fa-solid fa-moon"></i> Theme
-    </button>
-
-    <button onclick="logout()">
-      <i class="fa-solid fa-right-from-bracket"></i> Logout
-    </button>
+  <div class="topbar">
+    <h2>Dashboard</h2>
+    <h3 id="roleText"></h3>
   </div>
 
-  <!-- 🔥 MAIN -->
-  <div class="main">
-
-    <h1>⚡ Fraud Intelligence Dashboard</h1>
-
-    <!-- Upload -->
-    <div class="card">
-      <input type="file" id="fileInput" />
-      <button onclick="upload()">
-        <i class="fa-solid fa-upload"></i> Upload CSV
-      </button>
-
-      <!-- Loader -->
-      <div id="loader" class="loader" style="display:none;"></div>
-    </div>
-
-    <!-- Stats -->
-    <div class="stats">
-      <div class="stat high">High <span id="highCount">0</span></div>
-      <div class="stat medium">Medium <span id="mediumCount">0</span></div>
-      <div class="stat low">Low <span id="lowCount">0</span></div>
-    </div>
-
-    <!-- Chart -->
-    <canvas id="chart"></canvas>
-
-    <!-- Download -->
-    <button onclick="downloadData()">
-      <i class="fa-solid fa-download"></i> Download Report
-    </button>
-
-    <!-- Table -->
-    <table id="resultTable">
-      <thead>
-        <tr>
-          <th>Fraud Score</th>
-          <th>Risk Level</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-
+  <!-- CARDS -->
+  <div class="cards">
+    <div class="card">Total <span>0</span></div>
+    <div class="card">Low <span>0</span></div>
+    <div class="card">Medium <span>0</span></div>
+    <div class="card">High <span>0</span></div>
   </div>
+
+  <!-- CHARTS -->
+  <div class="charts">
+    <canvas id="lineChart"></canvas>
+    <canvas id="pieChart"></canvas>
+  </div>
+
+  <!-- UPLOAD -->
+  <input type="file" id="file">
+  <button onclick="upload()">Upload</button>
+
+  <!-- TABLE -->
+  <table id="dataTable">
+    <thead>
+      <tr>
+        <th>Amount</th>
+        <th>Claims</th>
+        <th>Risk</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
 </div>
 
-<!-- Toast -->
-<div id="toast" class="toast">Uploaded Successfully 🚀</div>
-
 <script>
-const role = localStorage.getItem("role");
+const role = localStorage.getItem("role") || "admin";
+document.getElementById("roleText").innerText = "Role: " + role;
 
-if (!role) {
-  window.location.href = "login.html";
-}
-
-document.getElementById("roleDisplay").innerText = "Role: " + role;
-
-function logout() {
+function logout(){
   localStorage.removeItem("role");
   window.location.href = "login.html";
 }
 
-function toggleTheme() {
-  document.body.classList.toggle("light");
-}
+// GLOBAL CHARTS
+let pieChart;
 
-function showToast(msg) {
-  const toast = document.getElementById("toast");
-  toast.innerText = msg;
-  toast.classList.add("show");
+window.onload = function(){
 
-  setTimeout(() => {
-    toast.classList.remove("show");
-  }, 2000);
-}
+  pieChart = new Chart(document.getElementById("pieChart"), {
+    type: 'pie',
+    data: {
+      labels: ["Low","Medium","High"],
+      datasets: [{
+        data: [0,0,0],
+        backgroundColor: ["green","orange","red"]
+      }]
+    }
+  });
 
-function downloadData() {
-  const table = document.getElementById("resultTable").outerHTML;
-  const blob = new Blob([table], { type: "text/html" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "fraud_report.html";
-  a.click();
-}
+  lineChart = new Chart(document.getElementById("lineChart"), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: "Amount",
+        data: [],
+        borderColor: "green"
+      }]
+    }
+  });
+};
 
-let chart;
+// UPLOAD FUNCTION
+async function upload(){
+  let file = document.getElementById("file").files[0];
 
-async function upload() {
-  if (role !== "admin") {
-    alert("Only admin can upload files");
+  if(!file){
+    alert("Select file first");
     return;
   }
 
-  const file = document.getElementById("fileInput").files[0];
-
-  if (!file) {
-    alert("Select a file");
-    return;
-  }
-
-  const formData = new FormData();
+  let formData = new FormData();
   formData.append("file", file);
 
-  document.getElementById("loader").style.display = "block";
-
-  const res = await fetch("http://localhost:5000/api/upload", {
+  let res = await fetch("http://localhost:3000/upload", {
     method: "POST",
     body: formData
   });
 
-  const data = await res.json();
-
-  document.getElementById("loader").style.display = "none";
-
-  showToast("Upload successful 🚀");
-
-  const tableBody = document.querySelector("#resultTable tbody");
-  tableBody.innerHTML = "";
-
-  let high = 0, medium = 0, low = 0;
+  let data = await res.json();
+if (!localStorage.getItem("role")) {
+  window.location.href = "login.html";
+}
+  // COUNT
+  let low=0, mid=0, high=0;
 
   data.forEach(item => {
-    const risk = item.RiskLevel.toLowerCase();
-
-    if (risk === "high") high++;
-    else if (risk === "medium") medium++;
-    else low++;
-
-    const row = `<tr>
-      <td>${item.FraudScore}</td>
-      <td>${item.RiskLevel}</td>
-    </tr>`;
-
-    tableBody.innerHTML += row;
+    if(item.risk==="Low") low++;
+    else if(item.risk==="Medium") mid++;
+    else high++;
   });
 
-  document.getElementById("highCount").innerText = high;
-  document.getElementById("mediumCount").innerText = medium;
-  document.getElementById("lowCount").innerText = low;
+  // UPDATE CARDS
+  document.querySelectorAll(".card span")[0].innerText = data.length;
+  document.querySelectorAll(".card span")[1].innerText = low;
+  document.querySelectorAll(".card span")[2].innerText = mid;
+  document.querySelectorAll(".card span")[3].innerText = high;
 
-  const ctx = document.getElementById("chart").getContext("2d");
+  // UPDATE PIE
+  pieChart.data.datasets[0].data = [low, mid, high];
+  pieChart.update();
 
-  if (chart) chart.destroy();
+  // UPDATE LINE
+  lineChart.data.labels = data.map((_, i) => "C"+(i+1));
+  lineChart.data.datasets[0].data = data.map(d => d.amount);
+  lineChart.update();
 
-  chart = new Chart(ctx, {
-    type: "doughnut",
-    data: {
-      labels: ["High", "Medium", "Low"],
-      datasets: [{
-        data: [high, medium, low],
-        backgroundColor: ["#ff4d4d", "#ffd633", "#66ff99"]
-      }]
-    }
+  // TABLE
+  let table = document.querySelector("#dataTable tbody");
+  table.innerHTML = "";
+
+  data.forEach(item => {
+    table.innerHTML += `
+      <tr>
+        <td>${item.amount}</td>
+        <td>${item.claims}</td>
+        <td style="color:${item.risk==="High"?"red":item.risk==="Medium"?"orange":"green"}">
+          ${item.risk}
+        </td>
+      </tr>`;
   });
+
+  // ALERT
+  if(high > 0){
+    alert("⚠️ High Risk Claims Detected!");
+  }
+
+  document.getElementById("roleText").innerText = "Analysis Updated ✅";
 }
 </script>
 
