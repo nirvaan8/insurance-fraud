@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Fraud Dashboard</title>
+  <title>Fraud Intelligence Dashboard</title>
+
+  <!-- CSS -->
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -109,12 +111,16 @@ async function upload(){
     body: formData
   });
 
-  let data = await res.json();
-if (!localStorage.getItem("role")) {
-  window.location.href = "login.html";
-}
-  // COUNT
-  let low=0, mid=0, high=0;
+  const data = await res.json();
+
+  document.getElementById("loader").style.display = "none";
+
+  showToast("Upload successful 🚀");
+
+  const tableBody = document.querySelector("#resultTable tbody");
+  tableBody.innerHTML = "";
+
+  let high = 0, medium = 0, low = 0;
 
   data.forEach(item => {
     if(item.risk==="Low") low++;
