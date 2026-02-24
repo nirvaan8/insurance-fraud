@@ -1,20 +1,21 @@
-# Use Node image
 FROM node:18
 
-# Set working directory
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-dev \
+    build-essential
+
 WORKDIR /app
 
-# Copy files
 COPY package*.json ./
-
-# Install dependencies
 RUN npm install
 
-# Copy all files
 COPY . .
 
-# Expose port
+# ✅ directly install libs (NO pip upgrade)
+RUN pip3 install pandas scikit-learn numpy --break-system-packages
+
 EXPOSE 3000
 
-# Start server
 CMD ["node", "server.js"]
