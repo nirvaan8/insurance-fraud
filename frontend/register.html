@@ -1,45 +1,171 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <title>FraudSys — Register</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="stylesheet" href="auth.css">
+  <style>
+    .divider{display:flex;align-items:center;gap:10px;margin:16px 0;}
+    .divider-line{flex:1;height:1px;background:rgba(255,255,255,0.1);}
+    .divider-text{font-size:12px;color:#888;white-space:nowrap;}
+    .btn-google{width:100%;padding:12px;margin-top:4px;background:rgba(255,255,255,0.06);border:1px solid rgba(168,85,247,0.3);border-radius:8px;color:white;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:all 0.3s;letter-spacing:0.5px;}
+    .btn-google:hover{background:rgba(168,85,247,0.15);box-shadow:0 0 15px rgba(168,85,247,0.3);border-color:rgba(168,85,247,0.6);}
+    #error-msg{color:#ff6b9d;font-size:13px;text-align:center;margin-top:8px;display:none;}
+
+    /* ROLE MODAL */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:999;display:none;align-items:center;justify-content:center;backdrop-filter:blur(6px);}
+    .modal-overlay.show{display:flex;}
+    .modal{background:#040f0c;border:1px solid #0a2a1f;padding:40px;width:360px;position:relative;animation:mfadein 0.3s ease;font-family:'Rajdhani',sans-serif;}
+    @keyframes mfadein{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+    .modal::before{content:'';position:absolute;top:-1px;left:-1px;width:14px;height:14px;border-top:2px solid #00ffc8;border-left:2px solid #00ffc8;box-shadow:0 0 8px #00ffc8;}
+    .modal::after{content:'';position:absolute;bottom:-1px;right:-1px;width:14px;height:14px;border-bottom:2px solid #00ffc8;border-right:2px solid #00ffc8;box-shadow:0 0 8px #00ffc8;}
+    .modal-title{font-family:'Orbitron',monospace;font-size:0.85rem;color:#00ffc8;letter-spacing:3px;margin-bottom:6px;}
+    .modal-sub{font-family:'Share Tech Mono',monospace;font-size:0.62rem;color:#2a5a48;letter-spacing:2px;margin-bottom:28px;}
+    .role-options{display:flex;flex-direction:column;gap:10px;margin-bottom:24px;}
+    .role-option{padding:14px 18px;border:1px solid #0a2a1f;background:transparent;color:#a0d4c0;font-family:'Rajdhani',sans-serif;font-size:0.88rem;font-weight:600;letter-spacing:2px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all 0.2s;text-align:left;width:100%;}
+    .role-option:hover{border-color:#00ffc8;color:#00ffc8;background:rgba(0,255,200,0.04);}
+    .role-option.selected{border-color:#00ffc8;color:#00ffc8;background:rgba(0,255,200,0.08);box-shadow:0 0 10px rgba(0,255,200,0.1);}
+    .role-icon{font-size:1.1rem;min-width:20px;}
+    .role-info{display:flex;flex-direction:column;}
+    .role-desc{font-size:0.68rem;color:#2a5a48;font-weight:400;letter-spacing:1px;margin-top:2px;}
+    .role-option.selected .role-desc{color:rgba(0,255,200,0.5);}
+    .btn-confirm{width:100%;background:transparent;border:1px solid #00ffc8;color:#00ffc8;font-family:'Orbitron',monospace;font-size:0.7rem;font-weight:700;letter-spacing:3px;padding:12px;cursor:pointer;transition:all 0.2s;}
+    .btn-confirm:hover:not(:disabled){background:rgba(0,255,200,0.08);box-shadow:0 0 16px rgba(0,255,200,0.2);}
+    .btn-confirm:disabled{opacity:0.3;cursor:not-allowed;border-color:#2a5a48;color:#2a5a48;}
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-<div class="box">
-  <h2>Register</h2>
-
-  <input id="user" placeholder="Username">
-  <input id="pass" type="password" placeholder="Password">
-
-  <select id="role">
-    <option value="admin">Admin</option>
-    <option value="analyst">Analyst</option>
-  </select>
-
-  <button onclick="register()">Register</button>
+<div id="g_id_onload"
+  data-client_id="141579954551-r6q36pitk0e2ob17632bggvumtebhv02.apps.googleusercontent.com"
+  data-callback="handleGoogleCredential"
+  data-auto_prompt="false">
 </div>
 
+<!-- Role Picker Modal (for Google Sign-Up) -->
+<div class="modal-overlay" id="roleModal">
+  <div class="modal">
+    <div class="modal-title">SELECT ACCESS LEVEL</div>
+    <div class="modal-sub">// CHOOSE YOUR ROLE TO CONTINUE</div>
+    <div class="role-options">
+      <button class="role-option" onclick="selectRole('analyst')" id="role-analyst">
+        <span class="role-icon">◉</span>
+        <span class="role-info">
+          ANALYST
+          <span class="role-desc">View dashboard, charts &amp; case records</span>
+        </span>
+      </button>
+      <button class="role-option" onclick="selectRole('admin')" id="role-admin">
+        <span class="role-icon">◈</span>
+        <span class="role-info">
+          ADMIN
+          <span class="role-desc">Full access — upload data, manage users</span>
+        </span>
+      </button>
+    </div>
+    <button class="btn-confirm" id="confirmRoleBtn" onclick="confirmRole()" disabled>
+      ⬡ CONFIRM &amp; REGISTER
+    </button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="left">
+    <h1>FRAUD<span>SYS</span></h1>
+    <p>Create your secure account to access the fraud analytics dashboard.</p>
+    <div class="live">● SYSTEM READY</div>
+  </div>
+
+  <div class="login-box">
+    <h2>REGISTER</h2>
+
+    <input type="text" id="email" placeholder="Email" />
+    <input type="password" id="password" placeholder="Password" />
+
+    <select id="role">
+      <option value="analyst">Analyst</option>
+      <option value="admin">Admin</option>
+    </select>
+
+    <button onclick="register()">REGISTER</button>
+
+    <div class="divider">
+      <div class="divider-line"></div>
+      <div class="divider-text">OR SIGN UP WITH</div>
+      <div class="divider-line"></div>
+    </div>
+
+    <button class="btn-google" onclick="google.accounts.id.prompt()">
+      <svg width="18" height="18" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg>
+      SIGN UP WITH GOOGLE
+    </button>
+
+    <div id="error-msg"></div>
+
+    <p class="link">Already a user? <a href="login.html">Login</a></p>
+  </div>
+</div>
+
+<script src="register.js"></script>
 <script>
-function register(){
-  const u=user.value.trim();
-  const p=pass.value.trim();
-  const r=role.value;
+  let pendingGoogleResponse = null;
+  let selectedRole = null;
 
-  if(!u||!p) return alert("Fill all");
-
-  let users=JSON.parse(localStorage.getItem("users"))||[];
-
-  if(users.find(x=>x.username===u)){
-    return alert("User exists");
+  function selectRole(role) {
+    selectedRole = role;
+    document.querySelectorAll('.role-option').forEach(b => b.classList.remove('selected'));
+    document.getElementById('role-' + role).classList.add('selected');
+    document.getElementById('confirmRoleBtn').disabled = false;
   }
 
-  users.push({username:u,password:p,role:r});
-  localStorage.setItem("users",JSON.stringify(users));
+  async function confirmRole() {
+    if (!selectedRole || !pendingGoogleResponse) return;
+    const btn = document.getElementById('confirmRoleBtn');
+    btn.textContent = '// REGISTERING...';
+    btn.disabled = true;
 
-  alert("Registered");
-  window.location.href="login.html";
-}
+    try {
+      const res = await fetch("http://localhost:3000/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: pendingGoogleResponse.credential, role: selectedRole })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem("role", data.role);
+        localStorage.setItem("email", data.email);
+        localStorage.setItem("avatar", data.avatar || "");
+        localStorage.setItem("name", data.name || "");
+        window.location.href = "index.html";
+      } else {
+        document.getElementById('roleModal').classList.remove('show');
+        const el = document.getElementById("error-msg");
+        el.textContent = data.error || "Google sign-up failed ❌";
+        el.style.display = "block";
+      }
+    } catch (err) {
+      document.getElementById('roleModal').classList.remove('show');
+      const el = document.getElementById("error-msg");
+      el.textContent = "Server error ❌";
+      el.style.display = "block";
+    }
+  }
+
+  function handleGoogleCredential(response) {
+    pendingGoogleResponse = response;
+    selectedRole = null;
+    document.querySelectorAll('.role-option').forEach(b => b.classList.remove('selected'));
+    document.getElementById('confirmRoleBtn').disabled = true;
+    document.getElementById('confirmRoleBtn').textContent = '⬡ CONFIRM & REGISTER';
+    document.getElementById('roleModal').classList.add('show');
+  }
 </script>
-
 </body>
 </html>
