@@ -1,41 +1,109 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <title>FraudSys — Login</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&family=Rajdhani:wght@400;600;700&display=swap');
+    :root{--bg:#020d0a;--panel:#040f0c;--border:#0a2a1f;--cyan:#00ffc8;--red:#ff2d6b;--muted:#2a5a48;--text:#a0d4c0;}
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--bg);font-family:'Rajdhani',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+    body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,255,200,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,200,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;}
+    body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.07) 2px,rgba(0,0,0,0.07) 4px);pointer-events:none;z-index:10;}
+    .login-box{position:relative;z-index:20;width:400px;background:var(--panel);border:1px solid var(--border);padding:48px 40px;animation:fadein 0.6s ease;}
+    @keyframes fadein{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    .login-box::before{content:'';position:absolute;top:-1px;left:-1px;width:16px;height:16px;border-top:2px solid var(--cyan);border-left:2px solid var(--cyan);box-shadow:0 0 10px var(--cyan);}
+    .login-box::after{content:'';position:absolute;bottom:-1px;right:-1px;width:16px;height:16px;border-bottom:2px solid var(--cyan);border-right:2px solid var(--cyan);box-shadow:0 0 10px var(--cyan);}
+    .logo{font-family:'Orbitron',monospace;font-size:1.8rem;font-weight:900;color:var(--cyan);text-shadow:0 0 20px var(--cyan),0 0 40px rgba(0,255,200,0.3);letter-spacing:4px;margin-bottom:4px;}
+    .logo-sub{font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:3px;margin-bottom:40px;}
+    label{display:block;font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:2px;margin-bottom:6px;}
+    input{width:100%;background:rgba(0,0,0,0.4);border:1px solid var(--border);color:var(--text);padding:11px 14px;font-family:'Share Tech Mono',monospace;font-size:0.8rem;letter-spacing:1px;outline:none;margin-bottom:20px;transition:border 0.2s,box-shadow 0.2s;}
+    input:focus{border-color:var(--cyan);box-shadow:0 0 0 1px rgba(0,255,200,0.2);}
+    .btn-login{width:100%;background:transparent;border:1px solid var(--cyan);color:var(--cyan);font-family:'Orbitron',monospace;font-size:0.75rem;font-weight:700;letter-spacing:3px;padding:12px;cursor:pointer;transition:all 0.2s;box-shadow:0 0 12px rgba(0,255,200,0.1);}
+    .btn-login:hover{background:rgba(0,255,200,0.08);box-shadow:0 0 20px rgba(0,255,200,0.25);}
+    .divider{display:flex;align-items:center;gap:12px;margin:24px 0;}
+    .divider-line{flex:1;height:1px;background:var(--border);}
+    .divider-text{font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted);letter-spacing:2px;white-space:nowrap;}
+    .btn-google{width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--border);color:var(--text);font-family:'Rajdhani',sans-serif;font-size:0.9rem;font-weight:600;letter-spacing:1px;padding:11px 16px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;transition:all 0.2s;}
+    .btn-google:hover{border-color:rgba(0,255,200,0.4);background:rgba(0,255,200,0.05);box-shadow:0 0 14px rgba(0,255,200,0.1);}
+    .footer-link{text-align:center;margin-top:24px;font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:1px;}
+    .footer-link a{color:var(--cyan);text-decoration:none;}
+    .footer-link a:hover{text-shadow:0 0 8px var(--cyan);}
+    #error-msg{color:var(--red);font-family:'Share Tech Mono',monospace;font-size:0.7rem;letter-spacing:1px;margin-top:-12px;margin-bottom:16px;display:none;}
+  </style>
 </head>
 <body>
 
-<div class="box">
-  <h2>Logins</h2>
-
-  <input id="username" placeholder="Username">
-  <input id="password" type="password" placeholder="Password">
-
-  <button onclick="login()">Login</button>
-
-  <p><a href="register.html">Register</a></p>
+<div id="g_id_onload"
+  data-client_id="141579954551-r6q36pitk0e2ob17632bggvumtebhv02.apps.googleusercontent.com"
+  data-callback="handleGoogleCredential"
+  data-auto_prompt="false">
 </div>
 
+<div class="login-box">
+  <div class="logo">FRAUDSYS</div>
+  <div class="logo-sub">// THREAT INTELLIGENCE PLATFORM</div>
+
+  <label>EMAIL ADDRESS</label>
+  <input type="email" id="email" placeholder="operative@fraudsys.io" />
+
+  <label>ACCESS CODE</label>
+  <input type="password" id="password" placeholder="••••••••••••" />
+
+  <div id="error-msg"></div>
+
+  <button class="btn-login" onclick="login()">⬡ AUTHENTICATE</button>
+
+  <div class="divider">
+    <div class="divider-line"></div>
+    <div class="divider-text">OR CONTINUE WITH</div>
+    <div class="divider-line"></div>
+  </div>
+
+  <button class="btn-google" onclick="google.accounts.id.prompt()">
+    <svg width="18" height="18" viewBox="0 0 24 24">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+    </svg>
+    SIGN IN WITH GOOGLE
+  </button>
+
+  <div class="footer-link">
+    NO ACCOUNT? <a href="register.html">REQUEST ACCESS</a>
+  </div>
+</div>
+
+<script src="login.js"></script>
 <script>
-function login() {
-  const u = username.value.trim();
-  const p = password.value.trim();
-
-  if(!u || !p) return alert("Fill fields");
-
-  const users = JSON.parse(localStorage.getItem("users")) || [];
-
-  const found = users.find(x => x.username===u && x.password===p);
-
-  if(found){
-    localStorage.setItem("role", found.role);
-    localStorage.setItem("username", found.username);
-    window.location.href="index.html";
-  } else {
-    alert("Invalid");
+  // Google login — no role picker needed, role was set at registration
+  async function handleGoogleCredential(response) {
+    try {
+      const res = await fetch("http://localhost:3000/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: response.credential })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem("role", data.role);
+        localStorage.setItem("email", data.email);
+        localStorage.setItem("avatar", data.avatar || "");
+        localStorage.setItem("name", data.name || "");
+        window.location.href = "index.html";
+      } else {
+        const el = document.getElementById("error-msg");
+        el.textContent = data.error || "Google login failed ❌";
+        el.style.display = "block";
+      }
+    } catch (err) {
+      const el = document.getElementById("error-msg");
+      el.textContent = "Server error ❌";
+      el.style.display = "block";
+    }
   }
-}
 </script>
-
 </body>
 </html>
