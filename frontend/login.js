@@ -38,8 +38,3 @@ async function login() {
     alert("Server error ❌");
   }
 }
-
-/* GOOGLE LOGIN */
-function googleLogin() {
-  window.location.href = "http://localhost:3000/auth/google";
-}
