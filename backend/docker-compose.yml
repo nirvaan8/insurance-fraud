@@ -1,0 +1,21 @@
+services:
+  backend:
+    build: .
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongo
+    volumes:
+      - .:/app   ✅ FIXED
+    command: node server.js
+
+  mongo:
+    image: mongo
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo-data:/data/db
+
+volumes:
+  mongo-data:
+

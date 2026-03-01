@@ -1,0 +1,26 @@
+{
+  "name": "insurance-fraud",
+  "version": "1.0.0",
+  "description": "",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nirvaan8/insurance-fraud.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/nirvaan8/insurance-fraud/issues"
+  },
+  "homepage": "https://github.com/nirvaan8/insurance-fraud#readme",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "multer": "^2.0.2"
+  }
+}
