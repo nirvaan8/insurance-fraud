@@ -1,171 +1,274 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Fraud Intelligence Dashboard</title>
-
-  <!-- CSS -->
+  <meta charset="UTF-8">
+  <title>FraudSys — Dashboard</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
+<div class="scanline"></div>
+
+<!-- ══════════ SIDEBAR ══════════ -->
 <div class="sidebar">
-  <h2>FraudSys</h2>
-  <ul>
-    <li class="active">Dashboard</li>
-    <li onclick="logout()">Logout</li>
-  </ul>
+  <div class="sidebar-logo">
+    <h2>FRAUDSYS</h2>
+    <div class="tagline">// THREAT INTELLIGENCE PLATFORM</div>
+  </div>
+
+  <div class="sidebar-status">
+    <div class="status-dot"></div>
+    <span class="status-text">SYSTEM ACTIVE</span>
+  </div>
+
+  <nav>
+    <div class="nav-item active">
+      <span class="nav-icon">◈</span> DASHBOARD
+    </div>
+    <div class="nav-item" id="usersTab" style="display:none" onclick="showUsers()">
+      <span class="nav-icon">◉</span> USERS
+    </div>
+    <div class="nav-item danger" onclick="logout()">
+      <span class="nav-icon">⏻</span> LOGOUT
+    </div>
+  </nav>
 </div>
 
+<!-- ══════════ MAIN ══════════ -->
 <div class="main">
 
+  <!-- TOPBAR -->
   <div class="topbar">
-    <h2>Dashboard</h2>
-    <h3 id="roleText"></h3>
+    <div class="topbar-left">
+      <h2>THREAT DASHBOARD</h2>
+      <div class="breadcrumb">// REAL-TIME FRAUD ANALYSIS ENGINE</div>
+    </div>
+    <div class="topbar-right">
+      <div class="role-badge" id="roleText">ROLE: —</div>
+      <div class="time-display" id="clock">--:--:--</div>
+    </div>
   </div>
 
-  <!-- CARDS -->
-  <div class="cards">
-    <div class="card">Total <span>0</span></div>
-    <div class="card">Low <span>0</span></div>
-    <div class="card">Medium <span>0</span></div>
-    <div class="card">High <span>0</span></div>
+  <div class="content">
+
+    <!-- CARDS -->
+    <div class="cards">
+      <div class="card">
+        <div class="card-label">Total Cases</div>
+        <div class="card-value" id="totalCount">0</div>
+        <div class="card-corner">⬡</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Low Risk</div>
+        <div class="card-value" id="lowCount">0</div>
+        <div class="card-corner">▲</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Medium Risk</div>
+        <div class="card-value" id="midCount">0</div>
+        <div class="card-corner">◆</div>
+      </div>
+      <div class="card">
+        <div class="card-label">High Risk</div>
+        <div class="card-value" id="highCount">0</div>
+        <div class="card-corner">⚠</div>
+      </div>
+    </div>
+
+    <!-- CHARTS -->
+    <div class="charts">
+      <div class="chart-panel">
+        <div class="panel-title">CLAIM AMOUNT TIMELINE</div>
+        <canvas id="lineChart" height="120"></canvas>
+      </div>
+      <div class="chart-panel">
+        <div class="panel-title">RISK DISTRIBUTION</div>
+        <canvas id="pieChart" height="120"></canvas>
+      </div>
+    </div>
+
+    <!-- UPLOAD (admin only) -->
+    <div id="uploadSection" style="display:none">
+      <div class="upload-panel">
+        <span class="upload-label">// INJECT DATA</span>
+        <input type="file" id="fileInput" accept=".csv" />
+        <button onclick="upload()">⬆ UPLOAD</button>
+      </div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="table-panel">
+      <div class="table-header">
+        <div class="panel-title">CASE RECORDS</div>
+      </div>
+      <table id="dataTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Amount</th>
+            <th>Claims</th>
+            <th>Risk Level</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="4" style="text-align:center; color: var(--muted); padding: 40px; font-family: 'Share Tech Mono', monospace; font-size:12px; letter-spacing:2px;">// NO DATA LOADED</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- USERS (admin only) -->
+    <div id="usersSection" style="display:none">
+      <div class="table-panel">
+        <div class="table-header">
+          <div class="panel-title">REGISTERED OPERATIVES</div>
+        </div>
+        <table id="usersTable">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Role</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
-
-  <!-- CHARTS -->
-  <div class="charts">
-    <canvas id="lineChart"></canvas>
-    <canvas id="pieChart"></canvas>
-  </div>
-
-  <!-- UPLOAD -->
-  <input type="file" id="file">
-  <button onclick="upload()">Upload</button>
-
-  <!-- TABLE -->
-  <table id="dataTable">
-    <thead>
-      <tr>
-        <th>Amount</th>
-        <th>Claims</th>
-        <th>Risk</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
 </div>
 
 <script>
-const role = localStorage.getItem("role") || "admin";
-document.getElementById("roleText").innerText = "Role: " + role;
+  const role = localStorage.getItem("role") || "analyst";
 
-function logout(){
-  localStorage.removeItem("role");
-  window.location.href = "login.html";
-}
+  // Clock
+  setInterval(() => {
+    document.getElementById("clock").innerText = new Date().toLocaleTimeString('en-GB');
+  }, 1000);
 
-// GLOBAL CHARTS
-let pieChart;
+  window.onload = async function () {
+    document.getElementById("roleText").innerText = "ROLE: " + role.toUpperCase();
 
-window.onload = function(){
-
-  pieChart = new Chart(document.getElementById("pieChart"), {
-    type: 'pie',
-    data: {
-      labels: ["Low","Medium","High"],
-      datasets: [{
-        data: [0,0,0],
-        backgroundColor: ["green","orange","red"]
-      }]
+    if (role === "admin") {
+      document.getElementById("uploadSection").style.display = "block";
+      document.getElementById("usersTab").style.display = "flex";
     }
-  });
 
-  lineChart = new Chart(document.getElementById("lineChart"), {
-    type: 'line',
-    data: {
-      labels: [],
-      datasets: [{
-        label: "Amount",
-        data: [],
-        borderColor: "green"
-      }]
+    // Charts
+    window.pieChart = new Chart(document.getElementById("pieChart"), {
+      type: 'doughnut',
+      data: {
+        labels: ["Low", "Medium", "High"],
+        datasets: [{
+          data: [0, 0, 0],
+          backgroundColor: ["rgba(0,255,200,0.7)", "rgba(255,170,0,0.7)", "rgba(255,45,107,0.7)"],
+          borderColor: ["#00ffc8", "#ffaa00", "#ff2d6b"],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        plugins: { legend: { labels: { color: '#4a7a70', font: { family: 'Share Tech Mono', size: 11 } } } },
+        cutout: '65%'
+      }
+    });
+
+    window.lineChart = new Chart(document.getElementById("lineChart"), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: "Claim Amount",
+          data: [],
+          borderColor: "#00ffc8",
+          backgroundColor: "rgba(0,255,200,0.05)",
+          borderWidth: 2,
+          pointBackgroundColor: "#00ffc8",
+          pointRadius: 3,
+          tension: 0.4,
+          fill: true
+        }]
+      },
+      options: {
+        plugins: { legend: { labels: { color: '#4a7a70', font: { family: 'Share Tech Mono', size: 11 } } } },
+        scales: {
+          x: { ticks: { color: '#4a7a70', font: { family: 'Share Tech Mono', size: 10 } }, grid: { color: 'rgba(0,255,200,0.05)' } },
+          y: { ticks: { color: '#4a7a70', font: { family: 'Share Tech Mono', size: 10 } }, grid: { color: 'rgba(0,255,200,0.05)' } }
+        }
+      }
+    });
+
+    await loadResults();
+  };
+
+  async function loadResults() {
+    try {
+      const res = await fetch("http://localhost:3000/results");
+      const data = await res.json();
+      if (data.length) updateDashboard(data);
+    } catch (err) {
+      console.error("Could not load results:", err);
     }
-  });
-};
-
-// UPLOAD FUNCTION
-async function upload(){
-  let file = document.getElementById("file").files[0];
-
-  if(!file){
-    alert("Select file first");
-    return;
   }
 
-  let formData = new FormData();
-  formData.append("file", file);
+  function updateDashboard(data) {
+    let low = 0, mid = 0, high = 0;
+    data.forEach(item => {
+      if (item.risk === "Low") low++;
+      else if (item.risk === "Medium") mid++;
+      else high++;
+    });
 
-  let res = await fetch("http://localhost:3000/upload", {
-    method: "POST",
-    body: formData
-  });
+    document.getElementById("totalCount").innerText = data.length;
+    document.getElementById("lowCount").innerText = low;
+    document.getElementById("midCount").innerText = mid;
+    document.getElementById("highCount").innerText = high;
 
-  const data = await res.json();
+    pieChart.data.datasets[0].data = [low, mid, high];
+    pieChart.update();
 
-  document.getElementById("loader").style.display = "none";
+    lineChart.data.labels = data.map((_, i) => "C" + (i + 1));
+    lineChart.data.datasets[0].data = data.map(d => d.amount);
+    lineChart.update();
 
-  showToast("Upload successful 🚀");
-
-  const tableBody = document.querySelector("#resultTable tbody");
-  tableBody.innerHTML = "";
-
-  let high = 0, medium = 0, low = 0;
-
-  data.forEach(item => {
-    if(item.risk==="Low") low++;
-    else if(item.risk==="Medium") mid++;
-    else high++;
-  });
-
-  // UPDATE CARDS
-  document.querySelectorAll(".card span")[0].innerText = data.length;
-  document.querySelectorAll(".card span")[1].innerText = low;
-  document.querySelectorAll(".card span")[2].innerText = mid;
-  document.querySelectorAll(".card span")[3].innerText = high;
-
-  // UPDATE PIE
-  pieChart.data.datasets[0].data = [low, mid, high];
-  pieChart.update();
-
-  // UPDATE LINE
-  lineChart.data.labels = data.map((_, i) => "C"+(i+1));
-  lineChart.data.datasets[0].data = data.map(d => d.amount);
-  lineChart.update();
-
-  // TABLE
-  let table = document.querySelector("#dataTable tbody");
-  table.innerHTML = "";
-
-  data.forEach(item => {
-    table.innerHTML += `
-      <tr>
-        <td>${item.amount}</td>
-        <td>${item.claims}</td>
-        <td style="color:${item.risk==="High"?"red":item.risk==="Medium"?"orange":"green"}">
-          ${item.risk}
-        </td>
-      </tr>`;
-  });
-
-  // ALERT
-  if(high > 0){
-    alert("⚠️ High Risk Claims Detected!");
+    let tbody = document.querySelector("#dataTable tbody");
+    tbody.innerHTML = "";
+    data.forEach((item, i) => {
+      const riskClass = item.risk === "High" ? "risk-high" : item.risk === "Medium" ? "risk-medium" : "risk-low";
+      const dot = item.risk === "High" ? "●" : item.risk === "Medium" ? "●" : "●";
+      tbody.innerHTML += `
+        <tr>
+          <td style="color:var(--muted)">${String(i+1).padStart(3,'0')}</td>
+          <td>${item.amount.toLocaleString()}</td>
+          <td>${item.claims}</td>
+          <td><span class="risk-badge ${riskClass}">${dot} ${item.risk.toUpperCase()}</span></td>
+        </tr>`;
+    });
   }
 
-  document.getElementById("roleText").innerText = "Analysis Updated ✅";
-}
+  function logout() {
+    localStorage.removeItem("role");
+    window.location.href = "login.html";
+  }
+
+  async function showUsers() {
+    if (role !== "admin") { alert("Access Denied ❌"); return; }
+    try {
+      const res = await fetch("http://localhost:3000/users");
+      const data = await res.json();
+      const tbody = document.querySelector("#usersTable tbody");
+      tbody.innerHTML = "";
+      data.forEach(user => {
+        tbody.innerHTML += `
+          <tr>
+            <td>${user.email}</td>
+            <td><span class="risk-badge ${user.role === 'admin' ? 'risk-high' : 'risk-low'}">${user.role.toUpperCase()}</span></td>
+          </tr>`;
+      });
+      document.getElementById("usersSection").style.display = "block";
+    } catch (err) { alert("Failed to load users ❌"); }
+  }
 </script>
 
+<script src="./upload.js"></script>
 </body>
 </html>
