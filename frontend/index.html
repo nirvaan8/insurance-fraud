@@ -234,6 +234,9 @@
     <div class="nav-item analyst-nav active" onclick="showSection('analystDashboard', this)">
       <span class="nav-icon">◈</span> DASHBOARD
     </div>
+    <div class="nav-item analyst-nav" onclick="showSection('analystHistory', this)">
+      <span class="nav-icon">◫</span> UPLOAD HISTORY
+    </div>
 
     <!-- Admin nav -->
     <div class="nav-item admin-nav" onclick="showSection('analystDashboard', this)" style="display:none">
@@ -277,7 +280,10 @@
 
     <!-- ══════ ANALYST DASHBOARD ══════ -->
     <div id="analystDashboard" style="display:block">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button onclick="loadResults()" style="background:transparent;border:1px solid #0a2a1f;color:#2a5a48;font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:2px;padding:6px 14px;cursor:pointer;transition:all 0.2s" onmouseover="this.style.borderColor='#00ffc8';this.style.color='#00ffc8'" onmouseout="this.style.borderColor='#0a2a1f';this.style.color='#2a5a48'">↻ REFRESH DATA</button></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
+        <button onclick="loadResults()" style="background:transparent;border:1px solid #0a2a1f;color:#2a5a48;font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:2px;padding:6px 14px;cursor:pointer;transition:all 0.2s" onmouseover="this.style.borderColor='#00ffc8';this.style.color='#00ffc8'" onmouseout="this.style.borderColor='#0a2a1f';this.style.color='#2a5a48'">↻ REFRESH DATA</button>
+        <button onclick="loadResults();document.getElementById('pageSubtitle').innerText='// REAL-TIME FRAUD ANALYSIS ENGINE'" style="background:transparent;border:1px solid #0a2a1f;color:#2a5a48;font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:2px;padding:6px 14px;cursor:pointer;transition:all 0.2s" onmouseover="this.style.borderColor='#ffaa00';this.style.color='#ffaa00'" onmouseout="this.style.borderColor='#0a2a1f';this.style.color='#2a5a48'">⬡ ALL DATA</button>
+      </div>
       <div class="cards" style="grid-template-columns:repeat(6,1fr)">
         <div class="card">
           <div class="card-label">Total Cases</div>
@@ -338,6 +344,19 @@
             <tr><td colspan="4" class="empty-state">// NO DATA LOADED</td></tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- ══════ ANALYST: UPLOAD HISTORY ══════ -->
+    <div id="analystHistory" style="display:none">
+      <div class="section-panel">
+        <div class="section-header">
+          <div class="panel-title">UPLOAD HISTORY</div>
+          <div id="analystHistoryCount" style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--muted)">—</div>
+        </div>
+        <div id="analystHistoryWrapper">
+          <div class="empty-state"><div class="empty-icon">◫</div>// LOADING...</div>
+        </div>
       </div>
     </div>
 
@@ -476,6 +495,22 @@
 <script>
   const role = localStorage.getItem("role") || "analyst";
 
+  // ── AUTH FETCH — adds JWT to every request, handles expiry ──
+  async function authFetch(url, options = {}) {
+    const t = localStorage.getItem("token");
+    if (!t) { logout(); return null; }
+    const headers = { ...options.headers, "Authorization": "Bearer " + t };
+    if (!(options.body instanceof FormData)) {
+      headers["Content-Type"] = "application/json";
+    }
+    const res = await fetch(url, { ...options, headers });
+    if (res.status === 401) {
+      const data = await res.json().catch(() => ({}));
+      if (data.expired) { alert("Session expired. Please login again."); logout(); return null; }
+    }
+    return res;
+  }
+
   // Clock
   setInterval(() => {
     document.getElementById("clock").innerText = new Date().toLocaleTimeString('en-GB');
@@ -483,7 +518,7 @@
 
   // Show/hide section
   function showSection(id, navEl) {
-    ['analystDashboard','adminUpload','adminHistory','adminUsers','adminSOC'].forEach(s => {
+    ['analystDashboard','analystHistory','adminUpload','adminHistory','adminUsers','adminSOC'].forEach(s => {
       document.getElementById(s).style.display = 'none';
     });
     document.getElementById(id).style.display = 'block';
@@ -493,6 +528,7 @@
     // Update topbar
     const titles = {
       analystDashboard: ['THREAT DASHBOARD', '// REAL-TIME FRAUD ANALYSIS ENGINE'],
+      analystHistory: ['UPLOAD HISTORY', '// BROWSE PAST DATA INJECTIONS'],
       adminUpload: ['INJECT DATA', '// UPLOAD CSV FOR ML PROCESSING'],
       adminHistory: ['UPLOAD HISTORY', '// ALL PAST DATA INJECTIONS'],
       adminUsers: ['OPERATIVES', '// REGISTERED SYSTEM USERS'],
@@ -503,6 +539,7 @@
 
     // Load data for section
     if (id === 'adminHistory') loadHistory();
+    if (id === 'analystHistory') loadHistory('analyst');
     if (id === 'adminSOC') { loadSOCStats(); loadSOCEvents(); }
     if (id === 'adminUsers') loadUsers();
     if (id === 'adminUpload') loadAdminStats();
@@ -511,6 +548,8 @@
 
   window.onload = async function () {
     document.getElementById("roleText").innerText = "ROLE: " + role.toUpperCase();
+    // Show session expiry countdown
+    startSessionTimer();
 
     if (role === "admin") {
       // Show admin nav, hide analyst nav
@@ -595,6 +634,77 @@
 
   // ── LOAD RESULTS (analyst) ──
 
+
+  // ── VIEW SPECIFIC UPLOAD ON DASHBOARD ──
+  async function viewUpload(uploadId, filename) {
+    try {
+      console.log("[viewUpload] uploadId:", uploadId, "file:", filename);
+
+      // Switch to dashboard
+      const dashNav = Array.from(document.querySelectorAll('.admin-nav'))
+        .find(el => el.textContent.trim().includes('DASHBOARD'));
+      showSection('analystDashboard', dashNav);
+
+      // Update topbar
+      const titleEl    = document.getElementById("pageTitle");
+      const subtitleEl = document.getElementById("pageSubtitle");
+      if (titleEl)    titleEl.innerText    = "THREAT DASHBOARD";
+      if (subtitleEl) subtitleEl.innerText = `// VIEWING: ${filename.toUpperCase()}`;
+
+      // Show loading
+      document.getElementById("totalCount").innerText = "...";
+      document.querySelector("#dataTable tbody").innerHTML =
+        `<tr><td colspan="8" style="text-align:center;padding:24px;font-family:monospace;color:var(--muted)">// LOADING ${filename}...</td></tr>`;
+
+      const res = await authFetch(`/results?uploadId=${uploadId}`);
+      if (!res) { console.error("[viewUpload] authFetch returned null"); return; }
+
+      const data = await res.json();
+      console.log("[viewUpload] rows returned:", data.length);
+
+      if (Array.isArray(data) && data.length) {
+        // Destroy and reinit charts so they reflect new data
+        if (window.lineChart)  { window.lineChart.destroy();  window.lineChart  = null; }
+        if (window.pieChart)   { window.pieChart.destroy();   window.pieChart   = null; }
+        if (window.confChart)  { window.confChart.destroy();  window.confChart  = null; }
+        window.chartsInitialized = false;
+        initCharts();
+        updateDashboard(data);
+        showUploadNotification(filename, data.length);
+      } else {
+        document.querySelector("#dataTable tbody").innerHTML =
+          `<tr><td colspan="8" style="text-align:center;padding:24px;font-family:monospace;color:var(--muted)">// NO DATA FOR THIS UPLOAD — RE-UPLOAD TO TAG IT</td></tr>`;
+      }
+    } catch (err) {
+      console.error("[viewUpload] error:", err);
+    }
+  }
+
+  function showUploadNotification(filename, rows) {
+    // Remove existing notification
+    const existing = document.getElementById("uploadNotif");
+    if (existing) existing.remove();
+
+    const notif = document.createElement("div");
+    notif.id = "uploadNotif";
+    notif.style.cssText = `
+      position:fixed;top:80px;right:24px;z-index:9999;
+      background:#040f0c;border:1px solid var(--accent);
+      padding:14px 20px;font-family:'Share Tech Mono',monospace;
+      font-size:0.7rem;letter-spacing:1px;color:var(--accent);
+      box-shadow:0 0 20px rgba(0,255,200,0.2);
+      animation:fadein 0.3s ease;
+    `;
+    notif.innerHTML = `
+      <div style="color:var(--muted);font-size:0.58rem;margin-bottom:4px">// UPLOAD LOADED</div>
+      <div>⬡ ${filename}</div>
+      <div style="color:var(--muted);margin-top:2px">${rows} records displayed</div>
+    `;
+    document.body.appendChild(notif);
+    setTimeout(() => { if (notif) notif.style.opacity = "0"; notif.style.transition = "opacity 0.5s"; }, 3000);
+    setTimeout(() => { if (notif) notif.remove(); }, 3500);
+  }
+
   // ── PAGINATED TABLE ──
   const PAGE_SIZE = 50;
   function renderPage(page) {
@@ -647,7 +757,7 @@
 
   async function loadResults() {
     try {
-      const res  = await fetch("/results");
+      const res  = await authFetch("/results");
       const data = await res.json();
       console.log("Results loaded:", data.length, "rows");
       if (Array.isArray(data) && data.length) {
@@ -732,7 +842,12 @@
       fill.style.width = "60%";
       progressText.innerText = "// RUNNING ML MODEL...";
 
-      const res = await fetch("/upload", { method: "POST", body: formData });
+      const t = localStorage.getItem("token");
+    const res = await fetch("/upload", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + t },
+      body: formData
+    });
       const data = await res.json();
 
       fill.style.width = "100%";
@@ -757,7 +872,7 @@
   // ── ADMIN: STATS ──
   async function loadAdminStats() {
     try {
-      const res = await fetch("/upload-history");
+      const res  = await authFetch("/upload-history");
       const data = await res.json();
       document.getElementById("adminTotalUploads").innerText = data.length;
       if (data.length > 0) {
@@ -771,7 +886,7 @@
   // ── ADMIN: HISTORY ──
   async function loadHistory() {
     try {
-      const res = await fetch("/upload-history");
+      const res  = await authFetch("/upload-history");
       const data = await res.json();
       const wrapper = document.getElementById("historyTableWrapper");
       document.getElementById("historyCount").innerText = data.length + " RECORDS";
@@ -785,21 +900,24 @@
         <table class="history-table">
           <thead>
             <tr>
-              <th>#</th>
-              <th>FILENAME</th>
-              <th>ROWS</th>
-              <th>HIGH</th>
-              <th>MEDIUM</th>
-              <th>LOW</th>
-              <th>UPLOADED BY</th>
-              <th>DATE & TIME</th>
+              <th>#</th><th>FILENAME</th><th>ROWS</th>
+              <th>HIGH</th><th>MEDIUM</th><th>LOW</th>
+              <th>UPLOADED BY</th><th>DATE & TIME</th>
             </tr>
           </thead>
           <tbody>
             ${data.map((h, i) => `
               <tr>
                 <td style="color:var(--muted)" class="mono-sm">${String(i+1).padStart(2,'0')}</td>
-                <td class="mono-sm" style="color:var(--accent)">${h.filename}</td>
+                <td class="mono-sm">
+                  <span
+                    onclick="viewUpload('${h._id}','${h.filename}')"
+                    style="color:var(--accent);cursor:pointer;border-bottom:1px dashed rgba(0,255,200,0.4);padding-bottom:1px"
+                    onmouseover="this.style.color='#ffffff'"
+                    onmouseout="this.style.color='var(--accent)'">
+                    ⬡ ${h.filename}
+                  </span>
+                </td>
                 <td class="mono-sm">${h.totalRows}</td>
                 <td><span class="risk-badge risk-high">● ${h.highRisk}</span></td>
                 <td><span class="risk-badge risk-medium">● ${h.mediumRisk}</span></td>
@@ -815,7 +933,7 @@
   // ── ADMIN: USERS ──
   async function loadUsers() {
     try {
-      const res = await fetch("/users");
+      const res  = await authFetch("/users");
       const data = await res.json();
       const wrapper = document.getElementById("usersTableWrapper");
       document.getElementById("userCount").innerText = data.length + " OPERATIVES";
@@ -854,9 +972,10 @@
   async function unlockAccount(email) {
     if (!confirm(`Unlock account: ${email}?`)) return;
     try {
+      const t = localStorage.getItem("token");
       const res  = await fetch("/unlock-account", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + t },
         body: JSON.stringify({ email })
       });
       const data = await res.json();
@@ -879,7 +998,7 @@
   // ── SOC: STATS ──
   async function loadSOCStats() {
     try {
-      const res  = await fetch("/security-stats");
+      const res  = await authFetch("/security-stats");
       const data = await res.json();
       document.getElementById("socCritical").innerText = data.critical;
       document.getElementById("socHigh").innerText     = data.high;
@@ -901,7 +1020,7 @@
     if (status)   url += "&status="   + status;
 
     try {
-      const res  = await fetch(url);
+      const res  = await authFetch(url);
       const data = await res.json();
       const wrapper = document.getElementById("socTableWrapper");
 
@@ -978,13 +1097,39 @@
   // ── SOC: UPDATE STATUS ──
   async function updateEventStatus(id, status) {
     try {
+      const t = localStorage.getItem("token");
       await fetch(`/security-events/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + t },
         body: JSON.stringify({ status })
       });
       loadSOCStats();
     } catch (err) { console.error(err); }
+  }
+
+  // ── SESSION EXPIRY TIMER ──
+  function startSessionTimer() {
+    const t = localStorage.getItem("token");
+    if (!t) return;
+    try {
+      const payload   = JSON.parse(atob(t.split(".")[1]));
+      const expiresAt = payload.exp * 1000;
+      const el        = document.getElementById("sessionTimer");
+      setInterval(() => {
+        const remaining = expiresAt - Date.now();
+        if (remaining <= 0) {
+          if (el) el.textContent = "SESSION EXPIRED";
+          setTimeout(logout, 2000);
+          return;
+        }
+        const h = Math.floor(remaining / 3600000);
+        const m = Math.floor((remaining % 3600000) / 60000);
+        const s = Math.floor((remaining % 60000) / 1000);
+        if (el) el.textContent = `SESSION: ${h}h ${m}m ${s}s`;
+        // Warn when < 10 min
+        if (el && remaining < 600000) el.style.color = "#ff6d00";
+      }, 1000);
+    } catch (e) {}
   }
 
   function logout() {
