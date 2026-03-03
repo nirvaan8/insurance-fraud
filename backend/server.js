@@ -1,17 +1,109 @@
-const express   = require("express");
-const cors      = require("cors");
-const multer    = require("multer");
-const mongoose  = require("mongoose");
-const fs        = require("fs");
-const csv       = require("csv-parser");
-const { execSync } = require("child_process");
-const bcrypt    = require("bcryptjs");
-const path      = require("path");
+const express        = require("express");
+const cors           = require("cors");
+const multer         = require("multer");
+const mongoose       = require("mongoose");
+const fs             = require("fs");
+const csv            = require("csv-parser");
+const { execSync }   = require("child_process");
+const bcrypt         = require("bcryptjs");
+const path           = require("path");
+const jwt            = require("jsonwebtoken");
+const nodemailer     = require("nodemailer");
+const mongoSanitize  = require("express-mongo-sanitize");
 const { OAuth2Client } = require("google-auth-library");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+/* ================= SECURITY MIDDLEWARE ================= */
+// Sanitize MongoDB queries — prevents NoSQL injection ($where, $gt attacks)
+app.use(mongoSanitize());
+// Strip dangerous characters from req.body strings (XSS prevention)
+app.use((req, res, next) => {
+  const sanitizeStr = (str) => typeof str === "string"
+    ? str.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+         .replace(/<[^>]+>/g, "")
+         .replace(/[<>'"]/g, c => ({ "<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;" }[c]))
+    : str;
+  const sanitizeObj = (obj) => {
+    if (typeof obj !== "object" || !obj) return obj;
+    Object.keys(obj).forEach(k => {
+      if (typeof obj[k] === "string") obj[k] = sanitizeStr(obj[k]);
+      else if (typeof obj[k] === "object") sanitizeObj(obj[k]);
+    });
+    return obj;
+  };
+  if (req.body) sanitizeObj(req.body);
+  next();
+});
+
+/* ================= JWT CONFIG ================= */
+const JWT_SECRET  = process.env.JWT_SECRET  || "fraudsys-super-secret-jwt-key-2024";
+const JWT_EXPIRY  = process.env.JWT_EXPIRY  || "8h"; // token expires in 8 hours
+
+function generateToken(user) {
+  return jwt.sign(
+    { id: user._id, email: user.email, role: user.role },
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRY }
+  );
+}
+
+function verifyToken(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1]; // Bearer <token>
+  if (!token) return res.status(401).json({ error: "No token — access denied ❌" });
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch (err) {
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({ error: "Session expired — please login again ❌", expired: true });
+    }
+    return res.status(403).json({ error: "Invalid token ❌" });
+  }
+}
+
+/* ================= EMAIL / OTP CONFIG ================= */
+// Uses Gmail. Set EMAIL_USER and EMAIL_PASS in .env
+// For testing: use a Gmail app password (not your real password)
+// If no email configured, OTP will be printed to console for testing
+const emailTransporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER || "",
+    pass: process.env.EMAIL_PASS || ""
+  }
+});
+
+// In-memory OTP store: { email: { otp, expiresAt } }
+const otpStore = {};
+
+function generateOTP() {
+  return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
+}
+
+async function sendOTP(email, otp) {
+  const hasEmail = process.env.EMAIL_USER && process.env.EMAIL_PASS;
+  if (!hasEmail) {
+    // Development mode — print to console
+    console.log(`\n[OTP DEBUG] Code for ${email}: ${otp}\n`);
+    return;
+  }
+  await emailTransporter.sendMail({
+    from: `"FraudSys Security" <${process.env.EMAIL_USER}>`,
+    to: email,
+    subject: "FraudSys — Your 2FA Login Code",
+    html: `
+      <div style="font-family:monospace;background:#020d0a;color:#00ffc8;padding:30px;border:1px solid #0a2a1f">
+        <h2 style="letter-spacing:4px">FRAUDSYS // 2FA</h2>
+        <p style="color:#a0d4c0">Your one-time login code:</p>
+        <div style="font-size:2.5rem;font-weight:bold;letter-spacing:8px;color:#00ffc8;margin:20px 0">${otp}</div>
+        <p style="color:#2a5a48;font-size:12px">Expires in 5 minutes. Do not share this code.</p>
+      </div>`
+  });
+}
 
 /* ================= GOOGLE OAUTH ================= */
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ||
@@ -35,7 +127,10 @@ const UserSchema = new mongoose.Schema({
   authProvider: { type: String, default: "local" },
   failedLogins: { type: Number, default: 0 },
   lockedUntil:  { type: Date,   default: null },
-  lastLogin:    { type: Date,   default: null }
+  lastLogin:    { type: Date,   default: null },
+  twoFAEnabled: { type: Boolean, default: true },
+  pendingOTP:   { type: String,  default: null },
+  otpExpiresAt: { type: Date,    default: null }
 });
 const User = mongoose.model("User", UserSchema);
 
@@ -45,6 +140,7 @@ const ResultSchema = new mongoose.Schema({
   probabilities: { Low: Number, Medium: Number, High: Number },
   anomaly: { isAnomaly: Boolean, anomalyScore: Number },
   flags: [String],
+  uploadId: { type: mongoose.Schema.Types.ObjectId, ref: "UploadHistory", default: null },
   uploadedAt: { type: Date, default: Date.now }
 });
 const Result = mongoose.model("Result", ResultSchema);
@@ -134,14 +230,13 @@ app.post("/register", async (req, res) => {
   }
 });
 
-/* LOGIN */
+/* LOGIN — Step 1: verify password, send OTP */
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
   const ip = req?.socket?.remoteAddress || "unknown";
   try {
     const user = await User.findOne({ email });
 
-    // Unknown email
     if (!user) {
       const attempts = trackFailedIP(ip);
       await logEvent("MEDIUM", "AUTH", "Login failed — unknown user",
@@ -150,21 +245,16 @@ app.post("/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid credentials ❌" });
     }
 
-    // Account locked?
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       await logEvent("HIGH", "AUTH", "Login attempt on locked account",
-        `Locked account login attempt: ${email}`,
-        email, req, { locked_until: user.lockedUntil });
+        `Locked account login attempt: ${email}`, email, req, { locked_until: user.lockedUntil });
       return res.status(403).json({ error: "Account locked. Try again in 15 minutes ❌" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
-
     if (!isMatch) {
       user.failedLogins = (user.failedLogins || 0) + 1;
       const attempts = trackFailedIP(ip);
-
-      // Lock after 5 failed attempts
       if (user.failedLogins >= 5) {
         user.lockedUntil = new Date(Date.now() + 15 * 60_000);
         await user.save();
@@ -173,33 +263,80 @@ app.post("/login", async (req, res) => {
           email, req, { failed_attempts: user.failedLogins, ip_attempts: attempts });
         return res.status(403).json({ error: "Account locked after too many failed attempts ❌" });
       }
-
-      // Warn on 3+ attempts
       if (user.failedLogins >= 3) {
         await logEvent("HIGH", "AUTH", "Multiple failed login attempts",
-          `${user.failedLogins} failed attempts for ${email}`,
-          email, req, { failed_attempts: user.failedLogins });
+          `${user.failedLogins} failed attempts for ${email}`, email, req, { failed_attempts: user.failedLogins });
       } else {
         await logEvent("MEDIUM", "AUTH", "Failed login — wrong password",
-          `Incorrect password for ${email}`,
-          email, req, { failed_attempts: user.failedLogins });
+          `Incorrect password for ${email}`, email, req, { failed_attempts: user.failedLogins });
       }
-
       await user.save();
       return res.status(401).json({ error: "Invalid credentials ❌" });
     }
 
-    // Success — reset counters
+    // Password correct — generate and send OTP
+    const otp = generateOTP();
+    user.pendingOTP   = await bcrypt.hash(otp, 8); // store hashed OTP
+    user.otpExpiresAt = new Date(Date.now() + 5 * 60_000); // 5 min expiry
     user.failedLogins = 0;
     user.lockedUntil  = null;
+    await user.save();
+
+    await sendOTP(email, otp);
+    await logEvent("INFO", "AUTH", "OTP sent for 2FA",
+      `Password verified for ${email}, OTP dispatched`, email, req);
+
+    // Return partial — frontend must now submit OTP
+    res.json({ requiresOTP: true, email, message: "OTP sent to your email ✅" });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ error: "Login error ❌" });
+  }
+});
+
+/* LOGIN — Step 2: verify OTP, issue JWT */
+app.post("/verify-otp", async (req, res) => {
+  const { email, otp } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user || !user.pendingOTP) {
+      return res.status(400).json({ error: "No OTP pending for this account ❌" });
+    }
+    if (!user.otpExpiresAt || user.otpExpiresAt < new Date()) {
+      user.pendingOTP = null;
+      await user.save();
+      await logEvent("MEDIUM", "AUTH", "OTP expired",
+        `Expired OTP used for ${email}`, email, req);
+      return res.status(400).json({ error: "OTP expired — please login again ❌" });
+    }
+    const otpMatch = await bcrypt.compare(otp, user.pendingOTP);
+    if (!otpMatch) {
+      await logEvent("HIGH", "AUTH", "Invalid OTP attempt",
+        `Wrong OTP entered for ${email}`, email, req);
+      return res.status(401).json({ error: "Invalid OTP ❌" });
+    }
+
+    // OTP correct — clear it, issue JWT
+    user.pendingOTP   = null;
+    user.otpExpiresAt = null;
     user.lastLogin    = new Date();
     await user.save();
-    await logEvent("INFO", "AUTH", "Successful login",
-      `${email} logged in as ${user.role}`, email, req, { role: user.role, authProvider: "local" });
 
-    res.json({ message: "Login successful ✅", role: user.role, email: user.email, avatar: user.avatar || null });
+    const token = generateToken(user);
+    await logEvent("INFO", "AUTH", "2FA login successful",
+      `${email} completed 2FA and logged in as ${user.role}`, email, req, { role: user.role });
+
+    res.json({
+      message:  "Login successful ✅",
+      token,
+      role:     user.role,
+      email:    user.email,
+      avatar:   user.avatar || null,
+      expiresIn: JWT_EXPIRY
+    });
   } catch (err) {
-    res.status(500).json({ error: "Login error ❌" });
+    console.error("OTP verify error:", err);
+    res.status(500).json({ error: "OTP verification failed ❌" });
   }
 });
 
@@ -230,7 +367,8 @@ app.post("/auth/google", async (req, res) => {
       `${email} authenticated via Google as ${user.role}`,
       email, req, { role: user.role, isNew, authProvider: "google" });
 
-    res.json({ message: "Google login successful ✅", role: user.role, email: user.email, name, avatar: picture });
+    const token = generateToken(user);
+    res.json({ message: "Google login successful ✅", token, role: user.role, email: user.email, name, avatar: picture, expiresIn: JWT_EXPIRY });
   } catch (err) {
     console.error("Google Auth Error:", err.message);
     await logEvent("HIGH", "AUTH", "Google auth failure",
@@ -300,9 +438,27 @@ app.patch("/security-events/:id", async (req, res) => {
 
 app.get("/users", async (req, res) => {
   try {
-    const users = await User.find({}, "email role authProvider avatar lastLogin failedLogins");
+    const users = await User.find({}, "email role authProvider avatar lastLogin failedLogins lockedUntil");
     res.json(users);
   } catch (err) { res.status(500).json({ error: "Failed to fetch users ❌" }); }
+});
+
+/* UNLOCK ACCOUNT */
+app.post("/unlock-account", async (req, res) => {
+  const { email } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ error: "User not found ❌" });
+    user.failedLogins = 0;
+    user.lockedUntil  = null;
+    await user.save();
+    await logEvent("INFO", "AUTH", "Account manually unlocked",
+      `Admin unlocked account: ${email}`, "admin", req, { unlockedEmail: email });
+    res.json({ message: `Account ${email} unlocked ✅` });
+  } catch (err) {
+    console.error("Unlock error:", err.message);
+    res.status(500).json({ error: "Failed to unlock account ❌" });
+  }
 });
 
 app.get("/results", async (req, res) => {
