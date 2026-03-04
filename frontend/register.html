@@ -132,7 +132,7 @@
     btn.disabled = true;
 
     try {
-      const res = await fetch("http://localhost:3000/auth/google", {
+      const res = await fetch("/auth/google", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ credential: pendingGoogleResponse.credential, role: selectedRole })
