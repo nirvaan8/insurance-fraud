@@ -1014,7 +1014,7 @@
     const category = document.getElementById("filterCategory")?.value || "";
     const status   = document.getElementById("filterStatus")?.value   || "";
 
-    let url = "http://localhost:3000/security-events?limit=100";
+    let url = "/security-events?limit=100";
     if (severity) url += "&severity=" + severity;
     if (category) url += "&category=" + category;
     if (status)   url += "&status="   + status;
