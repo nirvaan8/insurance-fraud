@@ -1,7 +1,6 @@
 // Railway: resolve modules from root node_modules
 const Module = require('module');
-const path   = require('path');
-Module.globalPaths.push(path.join(__dirname, '..', 'node_modules'));
+Module.globalPaths.push(require('path').join(__dirname, '..', 'node_modules'));
 
 const express        = require("express");
 const cors           = require("cors");
