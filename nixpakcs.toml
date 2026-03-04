@@ -2,10 +2,10 @@
 nixPkgs = ["nodejs_20", "python311"]
 
 [phases.install]
-cmds = ["cd backend && npm install"]
+cmds = ["npm install"]
 
 [phases.build]
-cmds = ["python3 -m ensurepip && python3 -m pip install pandas scikit-learn numpy joblib"]
+cmds = ["python3 -m ensurepip --upgrade && python3 -m pip install pandas scikit-learn numpy joblib"]
 
 [start]
-cmd = "cd backend && node server.js"
+cmd = "node backend/server.js"
