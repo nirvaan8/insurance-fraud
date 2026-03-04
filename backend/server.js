@@ -553,4 +553,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 
 /* ================= START ================= */
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => console.log(`Server running on port ${PORT} 🚀`));
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT} 🚀`);
+});
