@@ -221,8 +221,8 @@ Built by a team of cybersecurity students at **NIIT University** as a semester p
 |---|---|---|
 | Big Data | ML model, data pipeline, batch prediction|KAVYA CHAWLA
 | Cybersecurity | Auth security|UDIT PUNIA
-| SOC logging, deployment,|NIRVAAN KATYAL
-|Frontend|MUSKAN
+| Cybersecurity | SOC logging, deployment|NIRVAAN KATYAL
+| Cybersecurity ||Frontend|MUSKAN
 
 ---
 
