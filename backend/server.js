@@ -496,7 +496,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     // Run batch prediction — one Python call for ALL rows
     const scriptPath = path.join(__dirname, "predict_batch.py");
     const output = execSync(
-      `python "${scriptPath}" "${req.file.path}"`,
+      `python3 "${scriptPath}" "${req.file.path}"`,
       { cwd: __dirname, maxBuffer: 50 * 1024 * 1024, timeout: 120000 }
     ).toString().trim();
 
@@ -552,8 +552,5 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 });
 
 /* ================= START ================= */
-const PORT = process.env.PORT || 8080;
-
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT} 🚀`);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT} 🚀`));
