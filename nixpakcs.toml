@@ -1,11 +1,8 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "python311"]
+nixPkgs = ["nodejs_20", "python311", "python311Packages.pip", "python311Packages.pandas", "python311Packages.numpy", "python311Packages.scikit-learn"]
 
 [phases.install]
 cmds = ["npm install"]
-
-[phases.build]
-cmds = ["python3 -m ensurepip --upgrade && python3 -m pip install pandas scikit-learn numpy joblib"]
 
 [start]
 cmd = "node backend/server.js"
