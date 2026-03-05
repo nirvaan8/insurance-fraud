@@ -215,7 +215,7 @@ amount,claims
 
 ## 👥 Team
 
-Built by a team of cybersecurity students at **NIIT University** as a semester project.
+Built by a team of cybersecurity and big data students at **NIIT University** as a part of their capstone project.
 
 | Role | Focus |Name|
 |---|---|---|
