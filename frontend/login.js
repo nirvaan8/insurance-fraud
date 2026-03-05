@@ -13,8 +13,7 @@ async function login() {
   try {
     console.log("Sending request...");
 
-    const res = await fetch("http://localhost:3000/login", {
-      method: "POST",
+const res = await fetch("/login", {      method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
