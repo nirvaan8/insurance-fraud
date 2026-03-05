@@ -493,14 +493,26 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     uploader, req, { filename: req.file.originalname, size: req.file.size });
 
   try {
-    // Run batch prediction — one Python call for ALL rows
-    const scriptPath = path.join(__dirname, "predict_batch.py");
-    const output = execSync(
-      `python3 "${scriptPath}" "${req.file.path}"`,
-      { cwd: __dirname, maxBuffer: 50 * 1024 * 1024, timeout: 120000 }
-    ).toString().trim();
+    // Pure JS batch prediction — no Python needed
+    const { predict } = require("./predict_batch.js");
+    const csvData = fs.readFileSync(req.file.path, "utf8");
+    const csvLines = csvData.trim().split("\n");
+    const headers  = csvLines[0].toLowerCase().split(",").map(h => h.trim());
+    const amtIdx   = headers.indexOf("amount");
+    const clmIdx   = headers.indexOf("claims");
 
-    const predictions = JSON.parse(output);
+    if (amtIdx === -1 || clmIdx === -1) {
+      return res.status(400).json({ error: "CSV must have 'amount' and 'claims' columns ❌" });
+    }
+
+    const predictions = csvLines.slice(1)
+      .filter(l => l.trim())
+      .map(line => {
+        const cols   = line.split(",");
+        const amount = parseFloat(cols[amtIdx]) || 0;
+        const claims = parseFloat(cols[clmIdx]) || 0;
+        return predict(amount, claims);
+      });
 
     const results = predictions.map(p => ({
       amount:        p.amount,
@@ -512,6 +524,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       anomaly:       { isAnomaly: p.anomaly.is_anomaly, anomalyScore: p.anomaly.anomaly_score },
       flags:         p.flags || []
     }));
+
 
     await Result.deleteMany({});
     await Result.insertMany(results);
