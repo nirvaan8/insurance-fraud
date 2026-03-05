@@ -217,10 +217,10 @@ amount,claims
 
 Built by a team of cybersecurity students at **NIIT University** as a semester project.
 
-| Role | Focus |
-|---|---|
-| Big Data | ML model, data pipeline, batch prediction |KAVYA CHAWLA
-| Cybersecurity × 3 | Auth security|UDIT PUNIA
+| Role | Focus |Name|
+|---|---|---|
+| Big Data | ML model, data pipeline, batch prediction|KAVYA CHAWLA
+| Cybersecurity | Auth security|UDIT PUNIA
 | SOC logging, deployment,|NIRVAAN KATYAL
 |Frontend|MUSKAN
 
