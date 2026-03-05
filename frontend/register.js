@@ -12,8 +12,7 @@ async function register() {
   }
 
   try {
-    const res = await fetch("http://localhost:3000/register", {
-      method: "POST",
+const res = await fetch("/register", {      method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
