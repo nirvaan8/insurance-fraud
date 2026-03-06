@@ -42,6 +42,19 @@
     .timer{color:var(--cyan);font-size:0.75rem;}
     .resend-btn{background:none;border:none;color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:0.62rem;cursor:pointer;text-decoration:underline;margin-top:8px;display:block;width:100%;text-align:center;}
     .resend-btn:hover{color:var(--cyan);}
+
+    html[data-theme="light"] {
+      --bg:#f0f4f2; --panel:#ffffff; --border:#c8ddd6;
+      --cyan:#007a5e; --red:#d4003a; --muted:#7aaa96; --text:#2a5a48;
+    }
+    .theme-btn {
+      position: fixed; top: 16px; right: 16px; z-index: 999;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--muted); font-family: 'Share Tech Mono', monospace;
+      font-size: 0.6rem; letter-spacing: 1px; padding: 6px 12px;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .theme-btn:hover { border-color: var(--cyan); color: var(--cyan); }
   </style>
 </head>
 <body>
@@ -276,6 +289,24 @@
       }
     } catch (err) { showMsg("msg1", "Server error ❌"); }
   }
+</script>
+
+<button class="theme-btn" onclick="toggleTheme()" id="themeBtnLogin">☀ LIGHT</button>
+<script>
+  function toggleTheme() {
+    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    localStorage.setItem('theme', isDark ? 'light' : 'dark');
+    document.getElementById('themeBtnLogin').textContent = isDark ? '☾ DARK' : '☀ LIGHT';
+  }
+  (function() {
+    const saved = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', saved);
+    if (saved === 'light') {
+      const btn = document.getElementById('themeBtnLogin');
+      if (btn) btn.textContent = '☾ DARK';
+    }
+  })();
 </script>
 </body>
 </html>
