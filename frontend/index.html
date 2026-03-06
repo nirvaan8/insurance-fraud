@@ -266,6 +266,7 @@
 
   <!-- TOPBAR -->
   <div class="topbar">
+    <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
     <div class="topbar-left">
       <h2 id="pageTitle">THREAT DASHBOARD</h2>
       <div class="breadcrumb" id="pageSubtitle">// REAL-TIME FRAUD ANALYSIS ENGINE</div>
@@ -1138,6 +1139,62 @@
     localStorage.removeItem("avatar");
     window.location.href = "login.html";
   }
+
+  // ── THEME TOGGLE ──
+  function toggleTheme() {
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') !== 'light';
+    html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    localStorage.setItem('theme', isDark ? 'light' : 'dark');
+    document.getElementById('themeLabel').textContent = isDark ? 'LIGHT MODE' : 'DARK MODE';
+    // Update chart colors
+    if (window.lineChart || window.pieChart || window.confChart) {
+      const textColor = isDark ? '#a0d4c0' : '#2a5a48';
+      const gridColor = isDark ? 'rgba(10,42,31,0.4)' : 'rgba(200,221,214,0.5)';
+      [window.lineChart, window.pieChart, window.confChart].forEach(chart => {
+        if (!chart) return;
+        if (chart.options.scales?.x) {
+          chart.options.scales.x.ticks.color = textColor;
+          chart.options.scales.x.grid.color = gridColor;
+        }
+        if (chart.options.scales?.y) {
+          chart.options.scales.y.ticks.color = textColor;
+          chart.options.scales.y.grid.color = gridColor;
+        }
+        if (chart.options.plugins?.legend?.labels) {
+          chart.options.plugins.legend.labels.color = textColor;
+        }
+        chart.update();
+      });
+    }
+  }
+
+  // Apply saved theme on load
+  (function() {
+    const saved = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', saved);
+    if (saved === 'light') {
+      const lbl = document.getElementById('themeLabel');
+      if (lbl) lbl.textContent = 'LIGHT MODE';
+    }
+  })();
+
+  // ── MOBILE SIDEBAR ──
+  function toggleSidebar() {
+    document.querySelector('.sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('active');
+  }
+  function closeSidebar() {
+    document.querySelector('.sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('active');
+  }
+  // Close sidebar when nav item clicked on mobile
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      if (window.innerWidth <= 768) closeSidebar();
+    });
+  });
+
 </script>
 </body>
 </html>
