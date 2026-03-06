@@ -356,13 +356,15 @@ app.post("/auth/google", async (req, res) => {
     let user = await User.findOne({ $or: [{ googleId }, { email }] });
     const isNew = !user;
     if (!user) {
+      // Brand new user — use requested role (from register page dropdown)
       user = new User({ email, googleId, avatar: picture, role: requestedRole, authProvider: "google" });
     } else {
-      user.googleId = googleId;
-      user.avatar   = picture;
+      // Existing user — NEVER overwrite their role, just update Google info
+      user.googleId     = googleId;
+      user.avatar       = picture;
       user.authProvider = "google";
-      user.role     = requestedRole;
-      user.lastLogin = new Date();
+      user.lastLogin    = new Date();
+      // role stays as whatever was set at registration
     }
     await user.save();
 
