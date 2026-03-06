@@ -2,6 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <script>
+    // Apply theme before page renders to prevent flash
+    (function() {
+      var t = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <title>FraudSys — Dashboard</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -259,6 +266,15 @@
       <span class="nav-icon">⏻</span> LOGOUT
     </div>
   </nav>
+
+  <!-- Theme toggle — visible for BOTH admin and analyst -->
+  <div class="sidebar-footer">
+    <button class="theme-toggle" onclick="toggleTheme()" id="themeToggleBtn">
+      <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      <span id="themeLabel">DARK MODE</span>
+    </button>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:0.55rem;color:var(--muted);letter-spacing:1px;margin-top:8px;text-align:center;opacity:0.5" id="sidebarUserEmail"></div>
+  </div>
 </div>
 
 <!-- ══════════ MAIN ══════════ -->
@@ -549,6 +565,14 @@
 
   window.onload = async function () {
     document.getElementById("roleText").innerText = "ROLE: " + role.toUpperCase();
+    // Show user email in sidebar footer
+    const emailEl = document.getElementById("sidebarUserEmail");
+    if (emailEl) emailEl.textContent = localStorage.getItem("email") || "";
+    // Apply theme label on load
+    const savedTheme = localStorage.getItem("theme") || "dark";
+    document.documentElement.setAttribute("data-theme", savedTheme);
+    const lbl = document.getElementById("themeLabel");
+    if (lbl) lbl.textContent = savedTheme === "light" ? "LIGHT MODE" : "DARK MODE";
     // Show session expiry countdown
     startSessionTimer();
 
@@ -1169,15 +1193,7 @@
     }
   }
 
-  // Apply saved theme on load
-  (function() {
-    const saved = localStorage.getItem('theme') || 'dark';
-    document.documentElement.setAttribute('data-theme', saved);
-    if (saved === 'light') {
-      const lbl = document.getElementById('themeLabel');
-      if (lbl) lbl.textContent = 'LIGHT MODE';
-    }
-  })();
+  // Theme init handled in window.onload
 
   // ── MOBILE SIDEBAR ──
   function toggleSidebar() {
