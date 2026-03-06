@@ -167,5 +167,23 @@
     document.getElementById('roleModal').classList.add('show');
   }
 </script>
+
+<button class="theme-btn" onclick="toggleTheme()" id="themeBtnReg">☀ LIGHT</button>
+<script>
+  function toggleTheme() {
+    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    localStorage.setItem('theme', isDark ? 'light' : 'dark');
+    document.getElementById('themeBtnReg').textContent = isDark ? '☾ DARK' : '☀ LIGHT';
+  }
+  (function() {
+    const saved = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', saved);
+    if (saved === 'light') {
+      const btn = document.getElementById('themeBtnReg');
+      if (btn) btn.textContent = '☾ DARK';
+    }
+  })();
+</script>
 </body>
 </html>
