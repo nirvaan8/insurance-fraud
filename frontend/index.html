@@ -355,7 +355,7 @@
         </div>
         <table id="dataTable">
           <thead>
-            <tr><th>#</th><th>Amount</th><th>Claims</th><th>Risk Level</th><th>Confidence</th><th>Risk Score</th><th>Anomaly</th><th>Flags</th></tr>
+            <tr><th>#</th><th>Amount</th><th>Claims</th><th>Risk Level</th><th>Confidence</th><th>Risk Score</th><th>Anomaly</th><th>Flags</th><th>Explain</th></tr>
           </thead>
           <tbody>
             <tr><td colspan="4" class="empty-state">// NO DATA LOADED</td></tr>
@@ -754,6 +754,7 @@
       const flagsHtml = flagsArr.length
         ? flagsArr.map(f => `<span style="font-size:0.55rem;color:#ff6d00;border:1px solid #ff6d00;padding:1px 5px;margin:1px;display:inline-block">${f}</span>`).join("")
         : `<span style="color:var(--muted);font-size:0.65rem">—</span>`;
+      const itemJson = encodeURIComponent(JSON.stringify(item));
       return `<tr>
         <td style="color:var(--muted);font-size:0.7rem">${String(i+1).padStart(3,"0")}</td>
         <td style="font-size:0.75rem">₹${Number(item.amount).toLocaleString("en-IN")}</td>
@@ -763,6 +764,14 @@
         <td style="font-size:0.78rem;color:${confColor}">${score}</td>
         <td>${anomBadge}</td>
         <td>${flagsHtml}</td>
+        <td><button onclick="showExplain(decodeURIComponent('${itemJson}'))"
+          style="background:transparent;border:1px solid var(--border);color:var(--muted);
+          font-family:'Share Tech Mono',monospace;font-size:0.55rem;letter-spacing:1px;
+          padding:3px 8px;cursor:pointer;transition:all 0.2s;white-space:nowrap"
+          onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+          onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+          🔍 EXPLAIN
+        </button></td>
       </tr>`;
     }).join("");
 
@@ -1211,6 +1220,247 @@
     });
   });
 
+
+  // ── EXPLAINABILITY PANEL ──
+  function showExplain(itemStr) {
+    const item = typeof itemStr === 'string' ? JSON.parse(itemStr) : itemStr;
+    const amount = Number(item.amount);
+    const claims = Number(item.claims);
+    const score  = Number(item.riskScore  || 0);
+    const conf   = Number(item.confidence || 0);
+    const flags  = Array.isArray(item.flags) ? item.flags : [];
+    const probs  = item.probabilities || { Low: 0, Medium: 0, High: 0 };
+    const isAnom = item.anomaly && item.anomaly.isAnomaly;
+    const anomScore = item.anomaly ? Number(item.anomaly.anomalyScore || 0) : 0;
+
+    // Averages used for comparison (based on typical insurance dataset)
+    const AVG_AMOUNT = 562000;
+    const AVG_CLAIMS = 8;
+    const AVG_RATIO  = 30000;
+    const SAFE_CLAIMS = 15;
+    const claimRatio = claims > 0 ? amount / claims : amount;
+
+    // Build explanation items
+    const explanations = [];
+
+    // Amount analysis
+    const amtMultiple = (amount / AVG_AMOUNT).toFixed(1);
+    if (amount > 1500000) {
+      explanations.push({ icon: '🔴', type: 'critical', label: 'Extreme Claim Amount',
+        detail: `₹${amount.toLocaleString('en-IN')} is ${amtMultiple}x above the average claim of ₹${AVG_AMOUNT.toLocaleString('en-IN')}`,
+        impact: 'HIGH' });
+    } else if (amount > 800000) {
+      explanations.push({ icon: '🟠', type: 'warning', label: 'High Claim Amount',
+        detail: `₹${amount.toLocaleString('en-IN')} is ${amtMultiple}x above average — warrants closer review`,
+        impact: 'MEDIUM' });
+    } else {
+      explanations.push({ icon: '🟢', type: 'ok', label: 'Claim Amount Normal',
+        detail: `₹${amount.toLocaleString('en-IN')} is within expected range (avg: ₹${AVG_AMOUNT.toLocaleString('en-IN')})`,
+        impact: 'LOW' });
+    }
+
+    // Claims count analysis
+    if (claims > 20) {
+      explanations.push({ icon: '🔴', type: 'critical', label: 'Excessive Claims Count',
+        detail: `${claims} claims submitted — exceeds safe threshold of ${SAFE_CLAIMS} by ${Math.round(((claims-SAFE_CLAIMS)/SAFE_CLAIMS)*100)}%`,
+        impact: 'HIGH' });
+    } else if (claims > 12) {
+      explanations.push({ icon: '🟠', type: 'warning', label: 'Elevated Claims Count',
+        detail: `${claims} claims — above average of ${AVG_CLAIMS}, approaching threshold of ${SAFE_CLAIMS}`,
+        impact: 'MEDIUM' });
+    } else {
+      explanations.push({ icon: '🟢', type: 'ok', label: 'Claims Count Normal',
+        detail: `${claims} claims is within expected range (avg: ${AVG_CLAIMS} claims)`,
+        impact: 'LOW' });
+    }
+
+    // Claim ratio analysis
+    const ratioFormatted = Math.round(claimRatio).toLocaleString('en-IN');
+    if (claimRatio > 200000 || (claims > 5 && claimRatio < 1000)) {
+      explanations.push({ icon: '🔴', type: 'critical', label: 'Abnormal Claim Ratio',
+        detail: `₹${ratioFormatted} per claim — normal range is ₹${(15000).toLocaleString('en-IN')}–₹${(50000).toLocaleString('en-IN')}. Highly irregular pattern.`,
+        impact: 'HIGH' });
+    } else if (claimRatio > 80000) {
+      explanations.push({ icon: '🟠', type: 'warning', label: 'Elevated Claim Ratio',
+        detail: `₹${ratioFormatted} per claim — above the expected average of ₹${AVG_RATIO.toLocaleString('en-IN')}`,
+        impact: 'MEDIUM' });
+    } else {
+      explanations.push({ icon: '🟢', type: 'ok', label: 'Claim Ratio Normal',
+        detail: `₹${ratioFormatted} per claim — within the expected range of ₹15,000–₹50,000`,
+        impact: 'LOW' });
+    }
+
+    // Anomaly detection
+    if (isAnom) {
+      explanations.push({ icon: '🔴', type: 'critical', label: 'Statistical Anomaly Detected',
+        detail: `Anomaly score: ${anomScore}/100. This claim deviates significantly from normal statistical patterns in the dataset.`,
+        impact: 'HIGH' });
+    } else {
+      explanations.push({ icon: '🟢', type: 'ok', label: 'No Statistical Anomaly',
+        detail: `Claim follows expected statistical distribution. No unusual deviations detected.`,
+        impact: 'LOW' });
+    }
+
+    // Flag explanations
+    const flagDescriptions = {
+      'EXTREME_AMOUNT':         'Amount exceeds ₹15,00,000 — top 1% of all claims',
+      'EXCESSIVE_CLAIMS':       'More than 20 claims submitted — extreme outlier',
+      'HIGH_AMOUNT_HIGH_CLAIMS':'Both amount AND claims are simultaneously high — compound risk',
+      'ABNORMAL_CLAIM_RATIO':   'Amount-to-claims ratio is outside all normal boundaries'
+    };
+    flags.forEach(f => {
+      explanations.push({ icon: '🚩', type: 'flag', label: f.replace(/_/g,' '),
+        detail: flagDescriptions[f] || 'Automated rule triggered by ML engine',
+        impact: 'HIGH' });
+    });
+
+    // Risk color
+    const riskColor = item.risk === 'High' ? 'var(--danger)' : item.risk === 'Medium' ? 'var(--warning)' : 'var(--success)';
+    const riskBg    = item.risk === 'High' ? 'rgba(255,45,107,0.1)' : item.risk === 'Medium' ? 'rgba(255,170,0,0.1)' : 'rgba(0,200,150,0.1)';
+
+    // Build HTML
+    const html = `
+      <!-- Summary bar -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+        <div style="background:${riskBg};border:1px solid ${riskColor};padding:14px;text-align:center">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:0.55rem;color:var(--muted);letter-spacing:2px;margin-bottom:4px">RISK LEVEL</div>
+          <div style="font-family:'Orbitron',monospace;font-size:1.2rem;font-weight:800;color:${riskColor}">${item.risk.toUpperCase()}</div>
+        </div>
+        <div style="background:rgba(0,0,0,0.2);border:1px solid var(--border);padding:14px;text-align:center">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:0.55rem;color:var(--muted);letter-spacing:2px;margin-bottom:4px">CONFIDENCE</div>
+          <div style="font-family:'Orbitron',monospace;font-size:1.2rem;font-weight:800;color:var(--accent)">${conf.toFixed(1)}%</div>
+        </div>
+        <div style="background:rgba(0,0,0,0.2);border:1px solid var(--border);padding:14px;text-align:center">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:0.55rem;color:var(--muted);letter-spacing:2px;margin-bottom:4px">RISK SCORE</div>
+          <div style="font-family:'Orbitron',monospace;font-size:1.2rem;font-weight:800;color:${riskColor}">${score.toFixed(1)}/100</div>
+        </div>
+      </div>
+
+      <!-- Risk score bar -->
+      <div style="margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted);letter-spacing:2px">RISK SCORE GAUGE</span>
+          <span style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:${riskColor}">${score.toFixed(1)} / 100</span>
+        </div>
+        <div style="height:8px;background:var(--border);border-radius:1px;overflow:hidden">
+          <div style="height:100%;width:${score}%;background:linear-gradient(90deg,var(--success),var(--warning),var(--danger));transition:width 0.6s ease;border-radius:1px"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:3px">
+          <span style="font-family:'Share Tech Mono',monospace;font-size:0.5rem;color:var(--success)">LOW RISK</span>
+          <span style="font-family:'Share Tech Mono',monospace;font-size:0.5rem;color:var(--warning)">MEDIUM</span>
+          <span style="font-family:'Share Tech Mono',monospace;font-size:0.5rem;color:var(--danger)">HIGH RISK</span>
+        </div>
+      </div>
+
+      <!-- Probability breakdown -->
+      <div style="margin-bottom:20px;padding:14px;background:rgba(0,0,0,0.2);border:1px solid var(--border)">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted);letter-spacing:2px;margin-bottom:12px">// PROBABILITY BREAKDOWN</div>
+        ${['High','Medium','Low'].map(r => {
+          const p = Number(probs[r] || 0);
+          const c = r==='High'?'var(--danger)':r==='Medium'?'var(--warning)':'var(--success)';
+          return `<div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:${c}">${r.toUpperCase()} RISK</span>
+              <span style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:${c}">${p}%</span>
+            </div>
+            <div style="height:5px;background:var(--border);border-radius:1px">
+              <div style="height:100%;width:${p}%;background:${c};border-radius:1px;transition:width 0.5s"></div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <!-- Explanation items -->
+      <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted);letter-spacing:2px;margin-bottom:12px">// DETECTION REASONS</div>
+      ${explanations.map(e => {
+        const bgColor = e.type==='critical'||e.type==='flag' ? 'rgba(255,45,107,0.06)'
+                      : e.type==='warning' ? 'rgba(255,170,0,0.06)'
+                      : 'rgba(0,200,150,0.06)';
+        const bdColor = e.type==='critical'||e.type==='flag' ? 'rgba(255,45,107,0.25)'
+                      : e.type==='warning' ? 'rgba(255,170,0,0.25)'
+                      : 'rgba(0,200,150,0.25)';
+        const impColor= e.impact==='HIGH' ? 'var(--danger)' : e.impact==='MEDIUM' ? 'var(--warning)' : 'var(--success)';
+        return `
+        <div style="padding:12px 14px;margin-bottom:8px;background:${bgColor};border:1px solid ${bdColor};border-left:3px solid ${bdColor}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <span style="font-size:0.9rem;flex-shrink:0">${e.icon}</span>
+              <div>
+                <div style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--text-bright);letter-spacing:1px;margin-bottom:3px">${e.label}</div>
+                <div style="font-family:'Rajdhani',sans-serif;font-size:0.82rem;color:var(--text);line-height:1.4">${e.detail}</div>
+              </div>
+            </div>
+            <span style="font-family:'Share Tech Mono',monospace;font-size:0.55rem;color:${impColor};border:1px solid ${impColor};padding:2px 6px;white-space:nowrap;flex-shrink:0">${e.impact}</span>
+          </div>
+        </div>`;
+      }).join('')}
+
+      <!-- Input data -->
+      <div style="margin-top:16px;padding:14px;border:1px solid var(--border);background:rgba(0,0,0,0.15)">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted);letter-spacing:2px;margin-bottom:10px">// INPUT DATA</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--text)">
+            <span style="color:var(--muted)">AMOUNT: </span>₹${amount.toLocaleString('en-IN')}
+          </div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--text)">
+            <span style="color:var(--muted)">CLAIMS: </span>${claims}
+          </div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--text)">
+            <span style="color:var(--muted)">RATIO: </span>₹${Math.round(claimRatio).toLocaleString('en-IN')}/claim
+          </div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--text)">
+            <span style="color:var(--muted)">FLAGS: </span>${flags.length > 0 ? flags.length + ' triggered' : 'none'}
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('explainContent').innerHTML = html;
+    document.getElementById('explainOverlay').style.display = 'block';
+    document.getElementById('explainPanel').style.display  = 'block';
+    // Animate in
+    setTimeout(() => {
+      document.getElementById('explainPanel').style.opacity = '1';
+      document.getElementById('explainPanel').style.transform = 'translate(-50%,-50%) scale(1)';
+    }, 10);
+  }
+
+  function closeExplain() {
+    document.getElementById('explainOverlay').style.display = 'none';
+    document.getElementById('explainPanel').style.display   = 'none';
+  }
+
+  // Close on Escape key
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeExplain(); });
+
 </script>
+
+<!-- ══════ EXPLAINABILITY PANEL ══════ -->
+<div id="explainOverlay" onclick="closeExplain()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:1000;backdrop-filter:blur(2px)"></div>
+<div id="explainPanel" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:min(580px,95vw);max-height:85vh;overflow-y:auto;
+  background:var(--panel);border:1px solid var(--border);z-index:1001;
+  box-shadow:0 0 40px rgba(0,255,200,0.15)">
+
+  <!-- Panel header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;
+    padding:16px 20px;border-bottom:1px solid var(--border);
+    background:rgba(0,0,0,0.3);position:sticky;top:0;z-index:2">
+    <div>
+      <div style="font-family:'Orbitron',monospace;font-size:0.75rem;font-weight:700;
+        color:var(--accent);letter-spacing:3px">⬡ CASE ANALYSIS</div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;
+        color:var(--muted);letter-spacing:2px;margin-top:2px">// FRAUD DETECTION EXPLAINABILITY REPORT</div>
+    </div>
+    <button onclick="closeExplain()" style="background:transparent;border:1px solid var(--border);
+      color:var(--muted);font-size:1rem;padding:4px 10px;cursor:pointer;
+      font-family:monospace;transition:all 0.2s"
+      onmouseover="this.style.borderColor='var(--danger)';this.style.color='var(--danger)'"
+      onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">✕</button>
+  </div>
+
+  <div style="padding:20px" id="explainContent"><!-- filled by JS --></div>
+</div>
+
 </body>
 </html>
