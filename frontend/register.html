@@ -2,6 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function() {
+      var t = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <title>FraudSys — Register</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <link rel="stylesheet" href="auth.css">
