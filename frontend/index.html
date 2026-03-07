@@ -267,6 +267,9 @@
       <span class="nav-icon">⚠</span> SOC EVENTS
     </div>
 
+    <div class="nav-item" onclick="showSection('accountSettings', this)">
+      <span class="nav-icon">⚙</span> ACCOUNT
+    </div>
     <div class="nav-item danger" onclick="logout()">
       <span class="nav-icon">⏻</span> LOGOUT
     </div>
@@ -456,8 +459,12 @@
 
         <!-- Upload File Panel -->
         <div id="panelUpload">
-          <div class="upload-zone">
-            <div class="upload-zone-title">// DROP CSV FILE OR CLICK TO SELECT</div>
+          <div class="upload-zone" id="dropZone"
+            ondragover="handleDragOver(event)"
+            ondragleave="handleDragLeave(event)"
+            ondrop="handleDrop(event)">
+            <div class="upload-zone-title" id="dropZoneTitle">// DRAG &amp; DROP CSV HERE — OR CLICK TO SELECT</div>
+            <div style="font-size:2rem;margin:8px 0;opacity:0.4" id="dropIcon">⬇</div>
             <label class="upload-file-label" for="fileInput">◈ CHOOSE FILE</label>
             <input type="file" id="fileInput" accept=".csv" onchange="updateFileName(this)"/>
             <button class="upload-btn" id="uploadBtn" onclick="uploadFile()">⬆ UPLOAD &amp; PROCESS</button>
@@ -620,6 +627,79 @@
       </div>
     </div>
 
+
+    <!-- ══════ ACCOUNT SETTINGS ══════ -->
+    <div id="accountSettings" style="display:none">
+      <div class="section-panel">
+        <div class="section-header">
+          <div class="panel-title">ACCOUNT SETTINGS</div>
+        </div>
+        <div style="max-width:480px">
+          <div style="background:rgba(0,0,0,0.2);border:1px solid var(--border);padding:20px;margin-bottom:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+              <div>
+                <div style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--accent);letter-spacing:2px">GOOGLE AUTHENTICATOR</div>
+                <div style="font-family:Rajdhani,sans-serif;font-size:0.8rem;color:var(--muted);margin-top:4px">Two-factor authentication via TOTP</div>
+              </div>
+              <div id="totpStatusBadge" style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;padding:4px 10px;border:1px solid var(--border);color:var(--muted)">CHECKING...</div>
+            </div>
+            <!-- Not enabled -->
+            <div id="totpSetupArea">
+              <button onclick="startTOTPSetup()"
+                style="background:rgba(0,255,200,0.08);border:1px solid var(--accent);color:var(--accent);
+                font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:2px;
+                padding:9px 20px;cursor:pointer;width:100%">
+                ⬡ SETUP GOOGLE AUTHENTICATOR
+              </button>
+            </div>
+            <!-- QR code -->
+            <div id="totpQRArea" style="display:none;text-align:center">
+              <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted);margin-bottom:12px">
+                1. Install <strong style="color:var(--accent)">Google Authenticator</strong> on your phone<br>
+                2. Tap <strong>+</strong> → <strong>Scan QR code</strong><br>
+                3. Enter the 6-digit code below to confirm
+              </div>
+              <img id="totpQRImg" src="" style="width:180px;height:180px;border:2px solid var(--accent);margin-bottom:12px"/>
+              <div style="font-family:'Share Tech Mono',monospace;font-size:0.55rem;color:var(--muted);margin-bottom:12px">
+                Or enter manually: <span id="totpSecretDisplay" style="color:var(--accent);word-break:break-all"></span>
+              </div>
+              <input type="text" id="totpVerifyInput" placeholder="Enter 6-digit code"
+                maxlength="6" oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+                onkeydown="if(event.key==='Enter') confirmTOTPSetup()"
+                style="width:100%;background:transparent;border:1px solid var(--border);
+                color:var(--accent);font-family:'Share Tech Mono',monospace;font-size:1rem;
+                padding:10px;text-align:center;letter-spacing:6px;margin-bottom:10px;box-sizing:border-box"/>
+              <div id="totpSetupMsg" style="font-family:Rajdhani,sans-serif;font-size:0.8rem;color:var(--danger);margin-bottom:8px;min-height:20px"></div>
+              <button onclick="confirmTOTPSetup()"
+                style="background:rgba(0,255,200,0.08);border:1px solid var(--accent);color:var(--accent);
+                font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:2px;
+                padding:9px 20px;cursor:pointer;width:100%;margin-bottom:8px">
+                ✓ CONFIRM &amp; ENABLE
+              </button>
+              <button onclick="cancelTOTPSetup()"
+                style="background:transparent;border:1px solid var(--border);color:var(--muted);
+                font-family:'Share Tech Mono',monospace;font-size:0.55rem;
+                padding:7px 20px;cursor:pointer;width:100%">
+                CANCEL
+              </button>
+            </div>
+            <!-- Enabled -->
+            <div id="totpEnabledArea" style="display:none">
+              <div style="font-family:Rajdhani,sans-serif;font-size:0.85rem;color:var(--success);margin-bottom:12px">
+                ✅ Google Authenticator is active on your account
+              </div>
+              <button onclick="disableTOTP()"
+                style="background:transparent;border:1px solid var(--danger);color:var(--danger);
+                font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:2px;
+                padding:9px 20px;cursor:pointer;width:100%">
+                ✕ DISABLE AUTHENTICATOR
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -649,8 +729,9 @@
 
   // Show/hide section
   function showSection(id, navEl) {
-    ['analystDashboard','analystHistory','adminUpload','adminHistory','adminUsers','adminSOC'].forEach(s => {
-      document.getElementById(s).style.display = 'none';
+    ['analystDashboard','analystHistory','adminUpload','adminHistory','adminUsers','adminSOC','accountSettings'].forEach(s => {
+      const el = document.getElementById(s);
+      if (el) el.style.display = 'none';
     });
     document.getElementById(id).style.display = 'block';
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -661,6 +742,7 @@
       analystDashboard: ['THREAT DASHBOARD', '// REAL-TIME FRAUD ANALYSIS ENGINE'],
       analystHistory: ['UPLOAD HISTORY', '// BROWSE PAST DATA INJECTIONS'],
       adminUpload: ['INJECT DATA', '// UPLOAD CSV FOR ML PROCESSING'],
+      accountSettings: ['ACCOUNT SETTINGS', '// MANAGE YOUR SECURITY PREFERENCES'],
       adminHistory: ['UPLOAD HISTORY', '// ALL PAST DATA INJECTIONS'],
       adminUsers: ['OPERATIVES', '// REGISTERED SYSTEM USERS'],
       adminSOC: ['SOC EVENT LOG', '// SECURITY OPERATIONS CENTER — THREAT FEED'],
@@ -675,6 +757,7 @@
     if (id === 'adminUsers') loadUsers();
     if (id === 'adminUpload') loadAdminStats();
     if (id === 'analystDashboard') { if (!window.chartsInitialized) { initCharts(); window.chartsInitialized = true; } loadResults(); }
+    if (id === 'accountSettings') { loadTOTPStatus(); }
   }
 
   window.onload = async function () {
@@ -2373,6 +2456,128 @@
       progText.innerText = '// UPLOAD FAILED ❌';
       btn.disabled = false;
     }
+  }
+
+
+  // ══════════════════════════════════════════
+  // DRAG & DROP
+  // ══════════════════════════════════════════
+  function handleDragOver(e) {
+    e.preventDefault();
+    const zone = document.getElementById('dropZone');
+    zone.style.borderColor = 'var(--accent)';
+    zone.style.background  = 'rgba(0,255,200,0.06)';
+    document.getElementById('dropIcon').style.opacity = '1';
+    document.getElementById('dropZoneTitle').innerText = '// RELEASE TO UPLOAD';
+  }
+
+  function handleDragLeave(e) {
+    const zone = document.getElementById('dropZone');
+    zone.style.borderColor = '';
+    zone.style.background  = '';
+    document.getElementById('dropIcon').style.opacity = '0.4';
+    document.getElementById('dropZoneTitle').innerText = '// DRAG & DROP CSV HERE — OR CLICK TO SELECT';
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    handleDragLeave(e);
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    if (!file.name.endsWith('.csv')) {
+      alert('Only .csv files are supported ❌'); return;
+    }
+    // Inject into file input and trigger upload
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    const input = document.getElementById('fileInput');
+    input.files = dt.files;
+    updateFileName(input);
+  }
+
+  // ══════════════════════════════════════════
+  // TOTP SETUP
+  // ══════════════════════════════════════════
+  async function loadTOTPStatus() {
+    const email = localStorage.getItem('email');
+    if (!email) return;
+    try {
+      const res  = await authFetch(`/totp-status?email=${encodeURIComponent(email)}`);
+      const data = await res.json();
+      renderTOTPStatus(data.totpEnabled);
+    } catch(e) {}
+  }
+
+  function renderTOTPStatus(enabled) {
+    const badge   = document.getElementById('totpStatusBadge');
+    const setup   = document.getElementById('totpSetupArea');
+    const qr      = document.getElementById('totpQRArea');
+    const active  = document.getElementById('totpEnabledArea');
+    if (!badge) return;
+    if (enabled) {
+      badge.innerText       = '✅ ENABLED';
+      badge.style.color     = 'var(--success)';
+      badge.style.borderColor = 'var(--success)';
+      setup.style.display   = 'none';
+      qr.style.display      = 'none';
+      active.style.display  = 'block';
+    } else {
+      badge.innerText       = '✕ DISABLED';
+      badge.style.color     = 'var(--danger)';
+      badge.style.borderColor = 'var(--danger)';
+      setup.style.display   = 'block';
+      qr.style.display      = 'none';
+      active.style.display  = 'none';
+    }
+  }
+
+  async function startTOTPSetup() {
+    const email = localStorage.getItem('email');
+    try {
+      const res  = await authFetch('/setup-totp', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email }) });
+      const data = await res.json();
+      document.getElementById('totpQRImg').src          = data.qrCode;
+      document.getElementById('totpSecretDisplay').innerText = data.secret;
+      document.getElementById('totpSetupArea').style.display = 'none';
+      document.getElementById('totpQRArea').style.display    = 'block';
+      document.getElementById('totpVerifyInput').focus();
+    } catch(e) { alert('Failed to generate QR code ❌'); }
+  }
+
+  async function confirmTOTPSetup() {
+    const email = localStorage.getItem('email');
+    const token = document.getElementById('totpVerifyInput').value.trim();
+    const msg   = document.getElementById('totpSetupMsg');
+    if (token.length !== 6) { msg.innerText = 'Enter 6-digit code ❌'; return; }
+    try {
+      const res  = await authFetch('/enable-totp', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, token }) });
+      const data = await res.json();
+      if (res.ok) {
+        renderTOTPStatus(true);
+        addNotification('🔐 Google Authenticator Enabled', 'Your account is now protected with TOTP 2FA', 'MEDIUM');
+      } else {
+        msg.innerText = data.error || 'Verification failed ❌';
+      }
+    } catch(e) { document.getElementById('totpSetupMsg').innerText = 'Server error ❌'; }
+  }
+
+  function cancelTOTPSetup() {
+    document.getElementById('totpQRArea').style.display    = 'none';
+    document.getElementById('totpSetupArea').style.display = 'block';
+    document.getElementById('totpVerifyInput').value = '';
+    document.getElementById('totpSetupMsg').innerText = '';
+  }
+
+  async function disableTOTP() {
+    if (!confirm('Disable Google Authenticator? You will receive email OTP instead.')) return;
+    const email = localStorage.getItem('email');
+    try {
+      const res = await authFetch('/disable-totp', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email }) });
+      if (res.ok) {
+        renderTOTPStatus(false);
+        addNotification('⚠ Google Authenticator Disabled', 'Account now uses email OTP for 2FA', 'HIGH');
+      }
+    } catch(e) {}
   }
 
 </script>
