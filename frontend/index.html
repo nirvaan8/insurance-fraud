@@ -917,27 +917,41 @@
   }
 
   async function loadResults(uploadId) {
-    // Show loading state
     document.getElementById("totalCount").innerText = "...";
     const tbody = document.querySelector("#dataTable tbody");
     if (tbody) tbody.innerHTML = `<tr><td colspan="16" class="empty-state">// LOADING DATA...</td></tr>`;
 
     try {
-      const url  = uploadId ? `/results?uploadId=${uploadId}` : "/results";
+      // Load results for table (capped at 1000 for memory)
+      const url  = uploadId ? `/results?uploadId=${uploadId}&limit=1000` : "/results?limit=1000";
       const res  = await authFetch(url);
       const data = await res.json();
       console.log("Results loaded:", data.length, "rows");
+
       if (Array.isArray(data) && data.length) {
         updateDashboard(data);
+
+        // Load real totals from latest upload history for stat cards
+        try {
+          const histRes  = await authFetch("/upload-history");
+          const histData = await histRes.json();
+          if (histData.length) {
+            const latest = histData[0];
+            document.getElementById("totalCount").innerText  = latest.totalRows.toLocaleString("en-IN");
+            document.getElementById("highCount").innerText   = latest.highRisk;
+            document.getElementById("midCount").innerText    = latest.mediumRisk;
+            document.getElementById("lowCount").innerText    = latest.lowRisk;
+            document.getElementById("anomalyCount").innerText= latest.anomalies;
+          }
+        } catch(e) { /* stat cards already set from sample */ }
       } else {
         console.warn("No results returned from server");
         if (tbody) tbody.innerHTML = `<tr><td colspan="16" class="empty-state">// NO DATA FOUND</td></tr>`;
       }
     } catch (err) {
       console.error("Could not load results:", err);
-      if (document.querySelector("#dataTable tbody")) {
+      if (document.querySelector("#dataTable tbody"))
         document.querySelector("#dataTable tbody").innerHTML = `<tr><td colspan="16" class="empty-state" style="color:var(--danger)">// ERROR LOADING DATA — RETRY</td></tr>`;
-      }
     }
   }
 
