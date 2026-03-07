@@ -754,7 +754,6 @@
       const flagsHtml = flagsArr.length
         ? flagsArr.map(f => `<span style="font-size:0.55rem;color:#ff6d00;border:1px solid #ff6d00;padding:1px 5px;margin:1px;display:inline-block">${f}</span>`).join("")
         : `<span style="color:var(--muted);font-size:0.65rem">—</span>`;
-      const itemJson = encodeURIComponent(JSON.stringify(item));
       return `<tr>
         <td style="color:var(--muted);font-size:0.7rem">${String(i+1).padStart(3,"0")}</td>
         <td style="font-size:0.75rem">₹${Number(item.amount).toLocaleString("en-IN")}</td>
@@ -764,7 +763,7 @@
         <td style="font-size:0.78rem;color:${confColor}">${score}</td>
         <td>${anomBadge}</td>
         <td>${flagsHtml}</td>
-        <td><button onclick="showExplain(decodeURIComponent('${itemJson}'))"
+        <td><button onclick="showExplain(${i})"
           style="background:transparent;border:1px solid var(--border);color:var(--muted);
           font-family:'Share Tech Mono',monospace;font-size:0.55rem;letter-spacing:1px;
           padding:3px 8px;cursor:pointer;transition:all 0.2s;white-space:nowrap"
@@ -805,6 +804,7 @@
   }
 
   function updateDashboard(data) {
+    window._allResults = data; // store globally for explainability panel
     let low = 0, mid = 0, high = 0, anomalies = 0, totalConf = 0, confCount = 0;
     data.forEach(item => {
       if (item.risk === "Low") low++;
@@ -1222,8 +1222,9 @@
 
 
   // ── EXPLAINABILITY PANEL ──
-  function showExplain(itemStr) {
-    const item = typeof itemStr === 'string' ? JSON.parse(itemStr) : itemStr;
+  function showExplain(idx) {
+    const item = window._allResults[idx];
+    if (!item) return;
     const amount = Number(item.amount);
     const claims = Number(item.claims);
     const score  = Number(item.riskScore  || 0);
