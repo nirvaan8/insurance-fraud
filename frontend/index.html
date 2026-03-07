@@ -916,18 +916,28 @@
     document.querySelector("#dataTable tbody").innerHTML = rows + pager;
   }
 
-  async function loadResults() {
+  async function loadResults(uploadId) {
+    // Show loading state
+    document.getElementById("totalCount").innerText = "...";
+    const tbody = document.querySelector("#dataTable tbody");
+    if (tbody) tbody.innerHTML = `<tr><td colspan="16" class="empty-state">// LOADING DATA...</td></tr>`;
+
     try {
-      const res  = await authFetch("/results");
+      const url  = uploadId ? `/results?uploadId=${uploadId}` : "/results";
+      const res  = await authFetch(url);
       const data = await res.json();
       console.log("Results loaded:", data.length, "rows");
       if (Array.isArray(data) && data.length) {
         updateDashboard(data);
       } else {
         console.warn("No results returned from server");
+        if (tbody) tbody.innerHTML = `<tr><td colspan="16" class="empty-state">// NO DATA FOUND</td></tr>`;
       }
     } catch (err) {
       console.error("Could not load results:", err);
+      if (document.querySelector("#dataTable tbody")) {
+        document.querySelector("#dataTable tbody").innerHTML = `<tr><td colspan="16" class="empty-state" style="color:var(--danger)">// ERROR LOADING DATA — RETRY</td></tr>`;
+      }
     }
   }
 
