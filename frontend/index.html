@@ -218,6 +218,11 @@
       border-bottom: 1px solid var(--border);
       background: rgba(0,0,0,0.2);
     }
+
+    @keyframes fadeSlide {
+      from { opacity: 0; transform: translateX(-10px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
   </style>
 </head>
 <body>
@@ -289,6 +294,42 @@
     </div>
     <div class="topbar-right">
       <div class="role-badge" id="roleText">ROLE: —</div>
+
+      <!-- Notification Bell -->
+      <div style="position:relative" id="notifWrapper">
+        <button onclick="toggleNotifications()" id="notifBtn"
+          style="background:transparent;border:1px solid var(--border);color:var(--muted);
+          font-size:0.9rem;padding:5px 10px;cursor:pointer;position:relative;
+          font-family:monospace;transition:all 0.2s;letter-spacing:1px"
+          onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+          onmouseout="if(!document.getElementById('notifDropdown').classList.contains('open')){this.style.borderColor='var(--border)';this.style.color='var(--muted)'}">
+          🔔
+          <span id="notifBadge" style="display:none;position:absolute;top:-6px;right:-6px;
+            background:var(--danger);color:#fff;font-size:0.5rem;font-family:'Share Tech Mono',monospace;
+            padding:2px 5px;border-radius:0;min-width:16px;text-align:center;font-weight:bold">0</span>
+        </button>
+
+        <!-- Dropdown -->
+        <div id="notifDropdown" style="display:none;position:absolute;right:0;top:calc(100% + 8px);
+          width:320px;background:var(--panel);border:1px solid var(--border);z-index:500;
+          box-shadow:0 8px 32px rgba(0,0,0,0.5);max-height:400px;overflow-y:auto">
+          <div style="padding:12px 14px;border-bottom:1px solid var(--border);
+            display:flex;justify-content:space-between;align-items:center;
+            background:rgba(0,0,0,0.3);position:sticky;top:0">
+            <span style="font-family:'Orbitron',monospace;font-size:0.65rem;color:var(--accent);letter-spacing:2px">🔔 ALERTS</span>
+            <button onclick="clearNotifications()" style="background:transparent;border:none;
+              color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:0.55rem;
+              cursor:pointer;letter-spacing:1px"
+              onmouseover="this.style.color='var(--danger)'"
+              onmouseout="this.style.color='var(--muted)'">CLEAR ALL</button>
+          </div>
+          <div id="notifList">
+            <div style="padding:20px;text-align:center;font-family:'Share Tech Mono',monospace;
+              font-size:0.6rem;color:var(--muted)">// NO ALERTS YET</div>
+          </div>
+        </div>
+      </div>
+
       <div class="time-display" id="clock">--:--:--</div>
     </div>
   </div>
@@ -355,7 +396,7 @@
         </div>
         <table id="dataTable">
           <thead>
-            <tr><th>#</th><th>Amount</th><th>Claims</th><th>Risk Level</th><th>Confidence</th><th>Risk Score</th><th>Anomaly</th><th>Flags</th><th>Explain</th></tr>
+            <tr><th>#</th><th>Amount</th><th>Claims</th><th>Age</th><th>Policy(mo)</th><th>Incident</th><th>Witnesses</th><th>Police Rpt</th><th>Premium</th><th>Veh.Age</th><th>Risk Level</th><th>Confidence</th><th>Score</th><th>Anomaly</th><th>Flags</th><th>Explain</th></tr>
           </thead>
           <tbody>
             <tr><td colspan="4" class="empty-state">// NO DATA LOADED</td></tr>
@@ -396,15 +437,88 @@
         <div class="section-header">
           <div class="panel-title">INJECT NEW DATA</div>
         </div>
-        <div class="upload-zone">
-          <div class="upload-zone-title">// DROP CSV FILE OR CLICK TO SELECT</div>
-          <label class="upload-file-label" for="fileInput">◈ CHOOSE FILE</label>
-          <input type="file" id="fileInput" accept=".csv" onchange="updateFileName(this)"/>
-          <button class="upload-btn" id="uploadBtn" onclick="uploadFile()">⬆ UPLOAD &amp; PROCESS</button>
-          <div class="upload-file-name" id="fileName">No file selected</div>
-          <div class="upload-progress" id="uploadProgress">
-            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-            <div class="progress-text" id="progressText">// PROCESSING...</div>
+
+        <!-- Mode Tabs -->
+        <div style="display:flex;gap:0;margin-bottom:16px;border:1px solid var(--border);width:fit-content">
+          <button id="tabUpload" onclick="switchUploadTab('upload')"
+            style="background:rgba(0,255,200,0.08);border:none;border-right:1px solid var(--border);
+            color:var(--accent);font-family:'Share Tech Mono',monospace;font-size:0.6rem;
+            letter-spacing:2px;padding:8px 20px;cursor:pointer">
+            ◈ UPLOAD FILE
+          </button>
+          <button id="tabGenerate" onclick="switchUploadTab('generate')"
+            style="background:transparent;border:none;color:var(--muted);
+            font-family:'Share Tech Mono',monospace;font-size:0.6rem;
+            letter-spacing:2px;padding:8px 20px;cursor:pointer">
+            ⬡ GENERATE CSV
+          </button>
+        </div>
+
+        <!-- Upload File Panel -->
+        <div id="panelUpload">
+          <div class="upload-zone">
+            <div class="upload-zone-title">// DROP CSV FILE OR CLICK TO SELECT</div>
+            <label class="upload-file-label" for="fileInput">◈ CHOOSE FILE</label>
+            <input type="file" id="fileInput" accept=".csv" onchange="updateFileName(this)"/>
+            <button class="upload-btn" id="uploadBtn" onclick="uploadFile()">⬆ UPLOAD &amp; PROCESS</button>
+            <div class="upload-file-name" id="fileName">No file selected</div>
+            <div class="upload-progress" id="uploadProgress">
+              <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+              <div class="progress-text" id="progressText">// PROCESSING...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Generate CSV Panel -->
+        <div id="panelGenerate" style="display:none">
+          <div style="background:rgba(0,0,0,0.2);border:1px solid var(--border);padding:20px;margin-bottom:16px">
+            <div style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--muted);letter-spacing:2px;margin-bottom:14px">DATASET SIZE</div>
+
+            <!-- Quick presets -->
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
+              ${[['1,000','1000'],['5,000','5000'],['10,000','10000'],['50,000','50000'],['1,00,000','100000'],['2,00,000','200000']].map(([label,val])=>
+                `<button onclick="setGenSize(${val},this)"
+                  style="background:transparent;border:1px solid var(--border);color:var(--muted);
+                  font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:1px;
+                  padding:7px 14px;cursor:pointer;transition:all 0.2s"
+                  onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+                  onmouseout="if(!this.classList.contains('active')){this.style.borderColor='var(--border)';this.style.color='var(--muted)'}">
+                  ${label}
+                </button>`
+              ).join('')}
+            </div>
+
+            <!-- Custom input -->
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted);white-space:nowrap">CUSTOM:</span>
+              <input type="number" id="genSizeInput" min="100" max="200000" value="10000"
+                oninput="updateGenPreview()"
+                style="flex:1;background:transparent;border:1px solid var(--border);color:var(--accent);
+                font-family:'Share Tech Mono',monospace;font-size:0.75rem;padding:7px 10px;
+                letter-spacing:1px">
+              <span style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted)">rows</span>
+            </div>
+          </div>
+
+          <!-- Preview -->
+          <div id="genPreview" style="padding:12px 16px;background:rgba(0,255,200,0.04);
+            border:1px solid rgba(0,255,200,0.15);margin-bottom:16px;
+            font-family:'Share Tech Mono',monospace;font-size:0.62rem;color:var(--muted);letter-spacing:1px">
+            // READY TO GENERATE — SELECT SIZE ABOVE
+          </div>
+
+          <button id="genBtn" onclick="generateAndUpload()"
+            style="background:rgba(0,255,200,0.08);border:1px solid var(--accent);color:var(--accent);
+            font-family:'Orbitron',monospace;font-size:0.7rem;font-weight:700;letter-spacing:3px;
+            padding:12px 32px;cursor:pointer;transition:all 0.2s;width:100%"
+            onmouseover="this.style.background='rgba(0,255,200,0.15)'"
+            onmouseout="this.style.background='rgba(0,255,200,0.08)'">
+            ⬡ GENERATE &amp; UPLOAD
+          </button>
+
+          <div id="genProgress" style="display:none;margin-top:12px">
+            <div class="progress-bar"><div class="progress-fill" id="genProgressFill"></div></div>
+            <div class="progress-text" id="genProgressText">// GENERATING...</div>
           </div>
         </div>
       </div>
@@ -754,13 +868,27 @@
       const flagsHtml = flagsArr.length
         ? flagsArr.map(f => `<span style="font-size:0.55rem;color:#ff6d00;border:1px solid #ff6d00;padding:1px 5px;margin:1px;display:inline-block">${f}</span>`).join("")
         : `<span style="color:var(--muted);font-size:0.65rem">—</span>`;
+      const td = (v,extra="") => `<td style="font-size:0.72rem;${extra}">${v}</td>`;
+      const incidentLabel = { fire:"🔥 FIRE", theft:"🔓 THEFT", collision:"💥 COLLISION", other:"OTHER", unknown:"—" };
+      const incBadge = incidentLabel[item.incidentType] || item.incidentType || "—";
+      const policeRpt = item.policeReport === false || item.policeReport === 0 
+        ? `<span style="color:var(--danger);font-size:0.65rem">✗ NO</span>` 
+        : `<span style="color:var(--success);font-size:0.65rem">✓ YES</span>`;
+      const witnessColor = item.witnesses === 0 ? "color:var(--danger)" : "color:var(--muted)";
       return `<tr>
-        <td style="color:var(--muted);font-size:0.7rem">${String(i+1).padStart(3,"0")}</td>
-        <td style="font-size:0.75rem">₹${Number(item.amount).toLocaleString("en-IN")}</td>
-        <td style="font-size:0.75rem">${item.claims}</td>
+        ${td(String(i+1).padStart(3,"0"),"color:var(--muted)")}
+        ${td("₹"+Number(item.amount).toLocaleString("en-IN"))}
+        ${td(item.claims)}
+        ${td(item.age||"—")}
+        ${td(item.policyDuration||"—")}
+        ${td(incBadge)}
+        ${td(item.witnesses!==undefined?item.witnesses:"—",witnessColor)}
+        <td>${policeRpt}</td>
+        ${td(item.premiumAmount?("₹"+Number(item.premiumAmount).toLocaleString("en-IN")):"—")}
+        ${td(item.vehicleAge||"—")}
         <td><span class="risk-badge ${riskClass}">● ${item.risk.toUpperCase()}</span></td>
-        <td style="font-size:0.78rem;color:${confColor}">${conf}</td>
-        <td style="font-size:0.78rem;color:${confColor}">${score}</td>
+        ${td(conf,"color:"+confColor)}
+        ${td(score,"color:"+confColor)}
         <td>${anomBadge}</td>
         <td>${flagsHtml}</td>
         <td><button onclick="showExplain(${i})"
@@ -894,7 +1022,8 @@
         document.getElementById("fileInput").value = "";
         document.getElementById("fileName").innerText = "No file selected";
         loadAdminStats();
-        alert(`Upload successful ✅\n${data.length} records processed`);
+        // Show fraud pattern report instead of plain alert
+        showFraudReport(data, file.name);
       }, 1000);
 
     } catch (err) {
@@ -1225,94 +1354,172 @@
   function showExplain(idx) {
     const item = window._allResults[idx];
     if (!item) return;
-    const amount = Number(item.amount);
-    const claims = Number(item.claims);
-    const score  = Number(item.riskScore  || 0);
-    const conf   = Number(item.confidence || 0);
-    const flags  = Array.isArray(item.flags) ? item.flags : [];
-    const probs  = item.probabilities || { Low: 0, Medium: 0, High: 0 };
-    const isAnom = item.anomaly && item.anomaly.isAnomaly;
-    const anomScore = item.anomaly ? Number(item.anomaly.anomalyScore || 0) : 0;
+    const amount         = Number(item.amount        || 0);
+    const claims         = Number(item.claims        || 0);
+    const age            = Number(item.age           || 0);
+    const policyDuration = Number(item.policyDuration|| 0);
+    const witnesses      = item.witnesses !== undefined ? Number(item.witnesses) : null;
+    const policeReport   = item.policeReport;
+    const premiumAmount  = Number(item.premiumAmount || 0);
+    const vehicleAge     = Number(item.vehicleAge    || 0);
+    const incidentType   = item.incidentType || 'unknown';
+    const score          = Number(item.riskScore     || 0);
+    const conf           = Number(item.confidence    || 0);
+    const flags          = Array.isArray(item.flags) ? item.flags : [];
+    const probs          = item.probabilities || { Low: 0, Medium: 0, High: 0 };
+    const isAnom         = item.anomaly && item.anomaly.isAnomaly;
+    const anomScore      = item.anomaly ? Number(item.anomaly.anomalyScore || 0) : 0;
 
-    // Averages used for comparison (based on typical insurance dataset)
-    const AVG_AMOUNT = 562000;
-    const AVG_CLAIMS = 8;
-    const AVG_RATIO  = 30000;
-    const SAFE_CLAIMS = 15;
+    const AVG_AMOUNT = 562000, AVG_CLAIMS = 8, AVG_RATIO = 30000, SAFE_CLAIMS = 15;
     const claimRatio = claims > 0 ? amount / claims : amount;
-
-    // Build explanation items
     const explanations = [];
 
-    // Amount analysis
+    // Amount
     const amtMultiple = (amount / AVG_AMOUNT).toFixed(1);
-    if (amount > 1500000) {
-      explanations.push({ icon: '🔴', type: 'critical', label: 'Extreme Claim Amount',
-        detail: `₹${amount.toLocaleString('en-IN')} is ${amtMultiple}x above the average claim of ₹${AVG_AMOUNT.toLocaleString('en-IN')}`,
-        impact: 'HIGH' });
-    } else if (amount > 800000) {
-      explanations.push({ icon: '🟠', type: 'warning', label: 'High Claim Amount',
-        detail: `₹${amount.toLocaleString('en-IN')} is ${amtMultiple}x above average — warrants closer review`,
-        impact: 'MEDIUM' });
-    } else {
-      explanations.push({ icon: '🟢', type: 'ok', label: 'Claim Amount Normal',
-        detail: `₹${amount.toLocaleString('en-IN')} is within expected range (avg: ₹${AVG_AMOUNT.toLocaleString('en-IN')})`,
-        impact: 'LOW' });
-    }
+    if (amount > 1500000)
+      explanations.push({ icon:'🔴', type:'critical', label:'Extreme Claim Amount',
+        detail:`₹${amount.toLocaleString('en-IN')} is ${amtMultiple}x above average (₹${AVG_AMOUNT.toLocaleString('en-IN')})`, impact:'HIGH' });
+    else if (amount > 800000)
+      explanations.push({ icon:'🟠', type:'warning', label:'High Claim Amount',
+        detail:`₹${amount.toLocaleString('en-IN')} is ${amtMultiple}x above average — warrants review`, impact:'MEDIUM' });
+    else
+      explanations.push({ icon:'🟢', type:'ok', label:'Claim Amount Normal',
+        detail:`₹${amount.toLocaleString('en-IN')} is within expected range (avg ₹${AVG_AMOUNT.toLocaleString('en-IN')})`, impact:'LOW' });
 
-    // Claims count analysis
-    if (claims > 20) {
-      explanations.push({ icon: '🔴', type: 'critical', label: 'Excessive Claims Count',
-        detail: `${claims} claims submitted — exceeds safe threshold of ${SAFE_CLAIMS} by ${Math.round(((claims-SAFE_CLAIMS)/SAFE_CLAIMS)*100)}%`,
-        impact: 'HIGH' });
-    } else if (claims > 12) {
-      explanations.push({ icon: '🟠', type: 'warning', label: 'Elevated Claims Count',
-        detail: `${claims} claims — above average of ${AVG_CLAIMS}, approaching threshold of ${SAFE_CLAIMS}`,
-        impact: 'MEDIUM' });
-    } else {
-      explanations.push({ icon: '🟢', type: 'ok', label: 'Claims Count Normal',
-        detail: `${claims} claims is within expected range (avg: ${AVG_CLAIMS} claims)`,
-        impact: 'LOW' });
-    }
+    // Claims count
+    if (claims > 20)
+      explanations.push({ icon:'🔴', type:'critical', label:'Excessive Claims Count',
+        detail:`${claims} claims — exceeds safe threshold of ${SAFE_CLAIMS} by ${Math.round(((claims-SAFE_CLAIMS)/SAFE_CLAIMS)*100)}%`, impact:'HIGH' });
+    else if (claims > 12)
+      explanations.push({ icon:'🟠', type:'warning', label:'Elevated Claims Count',
+        detail:`${claims} claims — above avg of ${AVG_CLAIMS}, nearing threshold of ${SAFE_CLAIMS}`, impact:'MEDIUM' });
+    else
+      explanations.push({ icon:'🟢', type:'ok', label:'Claims Count Normal',
+        detail:`${claims} claims is within expected range (avg: ${AVG_CLAIMS})`, impact:'LOW' });
 
-    // Claim ratio analysis
+    // Claim ratio
     const ratioFormatted = Math.round(claimRatio).toLocaleString('en-IN');
-    if (claimRatio > 200000 || (claims > 5 && claimRatio < 1000)) {
-      explanations.push({ icon: '🔴', type: 'critical', label: 'Abnormal Claim Ratio',
-        detail: `₹${ratioFormatted} per claim — normal range is ₹${(15000).toLocaleString('en-IN')}–₹${(50000).toLocaleString('en-IN')}. Highly irregular pattern.`,
-        impact: 'HIGH' });
-    } else if (claimRatio > 80000) {
-      explanations.push({ icon: '🟠', type: 'warning', label: 'Elevated Claim Ratio',
-        detail: `₹${ratioFormatted} per claim — above the expected average of ₹${AVG_RATIO.toLocaleString('en-IN')}`,
-        impact: 'MEDIUM' });
-    } else {
-      explanations.push({ icon: '🟢', type: 'ok', label: 'Claim Ratio Normal',
-        detail: `₹${ratioFormatted} per claim — within the expected range of ₹15,000–₹50,000`,
-        impact: 'LOW' });
+    if (claimRatio > 200000 || (claims > 5 && claimRatio < 1000))
+      explanations.push({ icon:'🔴', type:'critical', label:'Abnormal Claim Ratio',
+        detail:`₹${ratioFormatted} per claim — normal range ₹15,000–₹50,000. Highly irregular.`, impact:'HIGH' });
+    else if (claimRatio > 80000)
+      explanations.push({ icon:'🟠', type:'warning', label:'Elevated Claim Ratio',
+        detail:`₹${ratioFormatted} per claim — above expected avg of ₹${AVG_RATIO.toLocaleString('en-IN')}`, impact:'MEDIUM' });
+    else
+      explanations.push({ icon:'🟢', type:'ok', label:'Claim Ratio Normal',
+        detail:`₹${ratioFormatted} per claim — within expected ₹15,000–₹50,000 range`, impact:'LOW' });
+
+    // Incident type
+    const incidentRisk = { fire:'CRITICAL — fire claims have highest fraud rate (90%)', theft:'HIGH — theft claims have 75% fraud likelihood',
+      collision:'MEDIUM — collision is most common claim type', other:'LOW — standard claim category', unknown:'UNKNOWN — incident type not specified' };
+    const incIcon = { fire:'🔥', theft:'🔓', collision:'💥', other:'📋', unknown:'❓' };
+    explanations.push({ icon: incIcon[incidentType]||'📋', type: incidentType==='fire'?'critical':incidentType==='theft'?'warning':'ok',
+      label: `Incident Type: ${incidentType.toUpperCase()}`,
+      detail: incidentRisk[incidentType] || 'Standard incident category', impact: incidentType==='fire'?'HIGH':incidentType==='theft'?'MEDIUM':'LOW' });
+
+    // Policy duration
+    if (policyDuration > 0) {
+      if (policyDuration < 3 && amount > 300000)
+        explanations.push({ icon:'🔴', type:'critical', label:'New Policy — Large Claim',
+          detail:`Policy is only ${policyDuration} months old. Claiming ₹${amount.toLocaleString('en-IN')} this early is a strong fraud indicator.`, impact:'HIGH' });
+      else if (policyDuration < 6)
+        explanations.push({ icon:'🟠', type:'warning', label:'Young Policy',
+          detail:`Policy is ${policyDuration} months old — claims within first 6 months are statistically more suspicious.`, impact:'MEDIUM' });
+      else
+        explanations.push({ icon:'🟢', type:'ok', label:'Established Policy',
+          detail:`Policy has been active ${policyDuration} months — consistent with genuine claimant behaviour.`, impact:'LOW' });
     }
 
-    // Anomaly detection
-    if (isAnom) {
-      explanations.push({ icon: '🔴', type: 'critical', label: 'Statistical Anomaly Detected',
-        detail: `Anomaly score: ${anomScore}/100. This claim deviates significantly from normal statistical patterns in the dataset.`,
-        impact: 'HIGH' });
-    } else {
-      explanations.push({ icon: '🟢', type: 'ok', label: 'No Statistical Anomaly',
-        detail: `Claim follows expected statistical distribution. No unusual deviations detected.`,
-        impact: 'LOW' });
+    // Witnesses
+    if (witnesses !== null) {
+      if (witnesses === 0 && amount > 500000)
+        explanations.push({ icon:'🔴', type:'critical', label:'No Witnesses — High Claim',
+          detail:`Zero witnesses on a ₹${amount.toLocaleString('en-IN')} claim. Absence of witnesses on large claims is a major red flag.`, impact:'HIGH' });
+      else if (witnesses === 0)
+        explanations.push({ icon:'🟠', type:'warning', label:'No Witnesses',
+          detail:`No witnesses recorded. While not conclusive alone, combined with other factors this raises suspicion.`, impact:'MEDIUM' });
+      else
+        explanations.push({ icon:'🟢', type:'ok', label:`${witnesses} Witness(es) Present`,
+          detail:`${witnesses} witness(es) recorded — corroborates the incident occurred as claimed.`, impact:'LOW' });
     }
 
-    // Flag explanations
+    // Police report
+    if (policeReport === false || policeReport === 0) {
+      if (amount > 400000)
+        explanations.push({ icon:'🔴', type:'critical', label:'No Police Report Filed',
+          detail:`No police report on a ₹${amount.toLocaleString('en-IN')} claim. Legitimate high-value incidents almost always involve a police report.`, impact:'HIGH' });
+      else
+        explanations.push({ icon:'🟠', type:'warning', label:'No Police Report',
+          detail:`No police report filed. May be acceptable for minor claims but reduces credibility.`, impact:'MEDIUM' });
+    } else {
+      explanations.push({ icon:'🟢', type:'ok', label:'Police Report Filed',
+        detail:`A police report was filed — supports the legitimacy of the claim.`, impact:'LOW' });
+    }
+
+    // Premium vs claim
+    if (premiumAmount > 0) {
+      const ratio = amount / premiumAmount;
+      if (ratio > 20)
+        explanations.push({ icon:'🔴', type:'critical', label:'Premium-Claim Mismatch',
+          detail:`Claiming ₹${amount.toLocaleString('en-IN')} against a premium of ₹${premiumAmount.toLocaleString('en-IN')} — ${ratio.toFixed(0)}x ratio is highly anomalous.`, impact:'HIGH' });
+      else if (ratio > 10)
+        explanations.push({ icon:'🟠', type:'warning', label:'High Premium-Claim Ratio',
+          detail:`Claim is ${ratio.toFixed(0)}x the annual premium — above the typical 10x threshold.`, impact:'MEDIUM' });
+      else
+        explanations.push({ icon:'🟢', type:'ok', label:'Premium-Claim Ratio Normal',
+          detail:`Claim-to-premium ratio of ${ratio.toFixed(1)}x is within expected range.`, impact:'LOW' });
+    }
+
+    // Vehicle age
+    if (vehicleAge > 0) {
+      if (vehicleAge > 15 && amount > 600000)
+        explanations.push({ icon:'🔴', type:'critical', label:'Old Vehicle — High Claim',
+          detail:`${vehicleAge}-year-old vehicle claimed at ₹${amount.toLocaleString('en-IN')}. Depreciated value makes this disproportionate.`, impact:'HIGH' });
+      else if (vehicleAge > 10)
+        explanations.push({ icon:'🟠', type:'warning', label:'Aged Vehicle',
+          detail:`Vehicle is ${vehicleAge} years old — expected claim value should be lower due to depreciation.`, impact:'MEDIUM' });
+      else
+        explanations.push({ icon:'🟢', type:'ok', label:'Vehicle Age Reasonable',
+          detail:`${vehicleAge}-year-old vehicle — within normal range for this claim amount.`, impact:'LOW' });
+    }
+
+    // Age of claimant
+    if (age > 0) {
+      if (age < 25 && amount > 700000)
+        explanations.push({ icon:'🔴', type:'critical', label:'Young Driver — High Claim',
+          detail:`Claimant is ${age} years old with a ₹${amount.toLocaleString('en-IN')} claim — young drivers with large claims have higher fraud rates.`, impact:'HIGH' });
+      else if (age < 25)
+        explanations.push({ icon:'🟠', type:'warning', label:'Young Driver',
+          detail:`Claimant age ${age} — statistically higher risk demographic for fraud.`, impact:'MEDIUM' });
+      else
+        explanations.push({ icon:'🟢', type:'ok', label:'Claimant Age Normal',
+          detail:`Claimant age ${age} — within standard risk profile.`, impact:'LOW' });
+    }
+
+    // Anomaly
+    if (isAnom)
+      explanations.push({ icon:'🔬', type:'critical', label:'Statistical Anomaly Detected',
+        detail:`Anomaly score: ${anomScore}/100. This claim deviates significantly from normal distribution in the dataset.`, impact:'HIGH' });
+    else
+      explanations.push({ icon:'🟢', type:'ok', label:'No Statistical Anomaly',
+        detail:`Claim follows expected statistical distribution across all features.`, impact:'LOW' });
+
+    // Flags
     const flagDescriptions = {
       'EXTREME_AMOUNT':         'Amount exceeds ₹15,00,000 — top 1% of all claims',
       'EXCESSIVE_CLAIMS':       'More than 20 claims submitted — extreme outlier',
-      'HIGH_AMOUNT_HIGH_CLAIMS':'Both amount AND claims are simultaneously high — compound risk',
-      'ABNORMAL_CLAIM_RATIO':   'Amount-to-claims ratio is outside all normal boundaries'
+      'HIGH_AMOUNT_HIGH_CLAIMS':'Both amount AND claims simultaneously high — compound risk',
+      'ABNORMAL_CLAIM_RATIO':   'Amount-to-claims ratio outside all normal boundaries',
+      'PREMIUM_CLAIM_MISMATCH': 'Claim amount vastly exceeds annual premium paid',
+      'NEW_POLICY_LARGE_CLAIM': 'Large claim filed within 3 months of policy start',
+      'NO_WITNESS_HIGH_CLAIM':  'No witnesses on a high-value claim',
+      'NO_POLICE_REPORT':       'No police report filed for a large claim',
+      'OLD_VEHICLE_HIGH_CLAIM': 'Claim value disproportionate to vehicle age',
+      'YOUNG_DRIVER_HIGH_CLAIM':'Young driver with unusually high claim'
     };
     flags.forEach(f => {
-      explanations.push({ icon: '🚩', type: 'flag', label: f.replace(/_/g,' '),
-        detail: flagDescriptions[f] || 'Automated rule triggered by ML engine',
-        impact: 'HIGH' });
+      explanations.push({ icon:'🚩', type:'flag', label: f.replace(/_/g,' '),
+        detail: flagDescriptions[f] || 'Automated rule triggered by ML engine', impact:'HIGH' });
     });
 
     // Risk color
@@ -1400,18 +1607,21 @@
       <div style="margin-top:16px;padding:14px;border:1px solid var(--border);background:rgba(0,0,0,0.15)">
         <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted);letter-spacing:2px;margin-bottom:10px">// INPUT DATA</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--text)">
-            <span style="color:var(--muted)">AMOUNT: </span>₹${amount.toLocaleString('en-IN')}
-          </div>
-          <div style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--text)">
-            <span style="color:var(--muted)">CLAIMS: </span>${claims}
-          </div>
-          <div style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--text)">
-            <span style="color:var(--muted)">RATIO: </span>₹${Math.round(claimRatio).toLocaleString('en-IN')}/claim
-          </div>
-          <div style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--text)">
-            <span style="color:var(--muted)">FLAGS: </span>${flags.length > 0 ? flags.length + ' triggered' : 'none'}
-          </div>
+          ${[
+            ['AMOUNT',          '₹'+amount.toLocaleString('en-IN')],
+            ['CLAIMS',          claims],
+            ['AGE',             age||'—'],
+            ['POLICY DURATION', policyDuration ? policyDuration+' months' : '—'],
+            ['INCIDENT TYPE',   incidentType.toUpperCase()],
+            ['WITNESSES',       witnesses!==null?witnesses:'—'],
+            ['POLICE REPORT',   policeReport===false||policeReport===0?'NO':'YES'],
+            ['PREMIUM AMOUNT',  premiumAmount?'₹'+Number(premiumAmount).toLocaleString('en-IN'):'—'],
+            ['VEHICLE AGE',     vehicleAge?vehicleAge+' yrs':'—'],
+            ['FLAGS',           flags.length>0?flags.length+' triggered':'none'],
+          ].map(([l,v])=>`
+            <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--text)">
+              <span style="color:var(--muted)">${l}: </span>${v}
+            </div>`).join('')}
         </div>
       </div>
     `;
@@ -1433,6 +1643,713 @@
 
   // Close on Escape key
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeExplain(); });
+
+
+  // ══════════════════════════════════════════
+  // FRAUD PATTERN REPORT
+  // ══════════════════════════════════════════
+  function showFraudReport(data, filename) {
+    if (!Array.isArray(data) || !data.length) return;
+
+    const total    = data.length;
+    const high     = data.filter(d => d.risk === 'High');
+    const medium   = data.filter(d => d.risk === 'Medium');
+    const low      = data.filter(d => d.risk === 'Low');
+    const anomalies= data.filter(d => d.anomaly && d.anomaly.isAnomaly);
+    const flagged  = data.filter(d => Array.isArray(d.flags) && d.flags.length > 0);
+
+    // Amount stats
+    const amounts  = data.map(d => Number(d.amount)).filter(a => !isNaN(a));
+    const claims   = data.map(d => Number(d.claims)).filter(c => !isNaN(c));
+    const avgAmt   = amounts.reduce((a,b)=>a+b,0) / amounts.length;
+    const maxAmt   = Math.max(...amounts);
+    const minAmt   = Math.min(...amounts);
+    const avgClaims= claims.reduce((a,b)=>a+b,0) / claims.length;
+    const maxClaims= Math.max(...claims);
+    const stdAmt   = Math.sqrt(amounts.map(a=>(a-avgAmt)**2).reduce((a,b)=>a+b,0)/amounts.length);
+    const avgConf  = data.map(d=>Number(d.confidence||0)).reduce((a,b)=>a+b,0)/total;
+
+    // Flag frequency
+    const flagCount = {};
+    data.forEach(d => (d.flags||[]).forEach(f => { flagCount[f] = (flagCount[f]||0)+1; }));
+    const topFlags = Object.entries(flagCount).sort((a,b)=>b[1]-a[1]);
+
+    // High risk clustering — group by amount range
+    const clusters = {
+      'EXTREME (>₹15L)':  high.filter(d=>d.amount>1500000),
+      'VERY HIGH (₹8L–15L)': high.filter(d=>d.amount>=800000&&d.amount<=1500000),
+      'HIGH (₹3L–8L)':    high.filter(d=>d.amount>=300000&&d.amount<800000),
+    };
+
+    // Threat level
+    const highPct = (high.length/total)*100;
+    const threatLevel = highPct >= 40 ? 'CRITICAL' : highPct >= 20 ? 'HIGH' : highPct >= 10 ? 'MEDIUM' : 'LOW';
+    const threatColor = threatLevel==='CRITICAL'?'var(--danger)':threatLevel==='HIGH'?'#ff6d00':threatLevel==='MEDIUM'?'var(--warning)':'var(--success)';
+    const threatBg    = threatLevel==='CRITICAL'?'rgba(255,45,107,0.1)':threatLevel==='HIGH'?'rgba(255,109,0,0.1)':threatLevel==='MEDIUM'?'rgba(255,170,0,0.1)':'rgba(0,200,150,0.1)';
+
+    // Pattern insights — narrative
+    const insights = [];
+
+    if (highPct >= 40) {
+      insights.push({ icon:'🚨', severity:'CRITICAL', title:'Widespread Fraud Activity',
+        text:`${high.length} of ${total} claims (${highPct.toFixed(1)}%) are HIGH risk — suggests systemic or organized fraud across this dataset.` });
+    } else if (highPct >= 15) {
+      insights.push({ icon:'⚠️', severity:'HIGH', title:'Significant Fraud Concentration',
+        text:`${high.length} high-risk claims detected (${highPct.toFixed(1)}%) — above the normal industry threshold of 10%.` });
+    } else {
+      insights.push({ icon:'✅', severity:'LOW', title:'Fraud Rate Within Normal Range',
+        text:`Only ${high.length} high-risk claims (${highPct.toFixed(1)}%) — consistent with typical insurance fraud rates of 5–10%.` });
+    }
+
+    if (anomalies.length > 0) {
+      const anomPct = ((anomalies.length/total)*100).toFixed(1);
+      insights.push({ icon:'🔬', severity:'HIGH', title:'Statistical Anomalies Detected',
+        text:`${anomalies.length} claims (${anomPct}%) show unusual statistical patterns not explained by rules alone — possible sophisticated fraud schemes.` });
+    }
+
+    if (stdAmt > avgAmt * 0.8) {
+      insights.push({ icon:'📊', severity:'MEDIUM', title:'High Amount Variance',
+        text:`Standard deviation of ₹${Math.round(stdAmt).toLocaleString('en-IN')} is ${((stdAmt/avgAmt)*100).toFixed(0)}% of the mean — dataset has extreme outliers that inflate risk.` });
+    }
+
+    if (clusters['EXTREME (>₹15L)'].length > 0) {
+      insights.push({ icon:'💰', severity:'CRITICAL', title:'Extreme Value Claims Cluster',
+        text:`${clusters['EXTREME (>₹15L)'].length} claims exceed ₹15,00,000 — top 1% threshold. These warrant immediate manual investigation.` });
+    }
+
+    if (topFlags.length > 0) {
+      const [topFlag, topCount] = topFlags[0];
+      insights.push({ icon:'🚩', severity:'HIGH', title:`Most Triggered Rule: ${topFlag.replace(/_/g,' ')}`,
+        text:`This rule fired ${topCount} times (${((topCount/total)*100).toFixed(1)}% of all claims) — indicates a recurring fraud pattern in this dataset.` });
+    }
+
+    if (medium.length > high.length && medium.length > total * 0.3) {
+      insights.push({ icon:'👁', severity:'MEDIUM', title:'Large Medium-Risk Pool Requires Review',
+        text:`${medium.length} medium-risk claims (${((medium.length/total)*100).toFixed(1)}%) — a significant portion. Some may escalate to high risk under further review.` });
+    }
+
+    // Build HTML
+    const html = `
+      <!-- Threat level banner -->
+      <div style="padding:16px 20px;margin-bottom:20px;background:${threatBg};border:1px solid ${threatColor};
+        display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--muted);letter-spacing:2px">OVERALL THREAT ASSESSMENT</div>
+          <div style="font-family:'Orbitron',monospace;font-size:1.5rem;font-weight:900;color:${threatColor};
+            text-shadow:0 0 12px ${threatColor};letter-spacing:4px">${threatLevel}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--muted);letter-spacing:2px">FRAUD RATE</div>
+          <div style="font-family:'Orbitron',monospace;font-size:1.5rem;font-weight:900;color:${threatColor}">${highPct.toFixed(1)}%</div>
+        </div>
+      </div>
+
+      <!-- Stats grid -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
+        ${[
+          ['TOTAL CASES', total, 'var(--accent)'],
+          ['HIGH RISK',   high.length,   'var(--danger)'],
+          ['ANOMALIES',   anomalies.length, '#ff6d00'],
+          ['AVG CONFIDENCE', avgConf.toFixed(1)+'%', 'var(--success)']
+        ].map(([label,val,color])=>`
+          <div style="background:rgba(0,0,0,0.2);border:1px solid var(--border);padding:14px;text-align:center">
+            <div style="font-family:'Share Tech Mono',monospace;font-size:0.52rem;color:var(--muted);letter-spacing:2px;margin-bottom:6px">${label}</div>
+            <div style="font-family:'Orbitron',monospace;font-size:1.3rem;font-weight:800;color:${color}">${val}</div>
+          </div>`).join('')}
+      </div>
+
+      <!-- Risk breakdown bar -->
+      <div style="margin-bottom:20px">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted);letter-spacing:2px;margin-bottom:8px">// RISK DISTRIBUTION</div>
+        <div style="height:24px;display:flex;border-radius:2px;overflow:hidden;border:1px solid var(--border)">
+          ${low.length    ? `<div style="width:${(low.length/total*100).toFixed(1)}%;background:var(--success);display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:0.55rem;color:#000;font-weight:bold;min-width:30px">${((low.length/total)*100).toFixed(0)}%</div>` : ''}
+          ${medium.length ? `<div style="width:${(medium.length/total*100).toFixed(1)}%;background:var(--warning);display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:0.55rem;color:#000;font-weight:bold;min-width:30px">${((medium.length/total)*100).toFixed(0)}%</div>` : ''}
+          ${high.length   ? `<div style="width:${(high.length/total*100).toFixed(1)}%;background:var(--danger);display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:0.55rem;color:#fff;font-weight:bold;min-width:30px">${((high.length/total)*100).toFixed(0)}%</div>` : ''}
+        </div>
+        <div style="display:flex;gap:16px;margin-top:6px">
+          ${[['LOW',low.length,'var(--success)'],['MEDIUM',medium.length,'var(--warning)'],['HIGH',high.length,'var(--danger)']].map(([l,v,c])=>
+            `<span style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:${c}">■ ${l}: ${v}</span>`
+          ).join('')}
+        </div>
+      </div>
+
+      <!-- Statistical summary -->
+      <div style="margin-bottom:20px;padding:14px;background:rgba(0,0,0,0.2);border:1px solid var(--border)">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted);letter-spacing:2px;margin-bottom:12px">// STATISTICAL SUMMARY</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          ${[
+            ['Avg Claim Amount',   '₹'+Math.round(avgAmt).toLocaleString('en-IN')],
+            ['Max Claim Amount',   '₹'+maxAmt.toLocaleString('en-IN')],
+            ['Min Claim Amount',   '₹'+minAmt.toLocaleString('en-IN')],
+            ['Std Deviation',      '₹'+Math.round(stdAmt).toLocaleString('en-IN')],
+            ['Avg Claims Count',   avgClaims.toFixed(1)],
+            ['Max Claims Count',   maxClaims],
+          ].map(([l,v])=>`
+            <div style="display:flex;justify-content:space-between;padding:6px 10px;
+              background:rgba(0,0,0,0.2);border:1px solid var(--border)">
+              <span style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--muted)">${l}</span>
+              <span style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--text-bright)">${v}</span>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Fraud clusters -->
+      ${Object.entries(clusters).some(([,v])=>v.length>0) ? `
+      <div style="margin-bottom:20px">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted);letter-spacing:2px;margin-bottom:10px">// HIGH-RISK AMOUNT CLUSTERS</div>
+        ${Object.entries(clusters).filter(([,v])=>v.length>0).map(([label,group])=>`
+          <div style="padding:10px 14px;margin-bottom:8px;background:rgba(255,45,107,0.06);
+            border:1px solid rgba(255,45,107,0.2);display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-family:'Share Tech Mono',monospace;font-size:0.62rem;color:var(--danger);letter-spacing:1px">${label}</div>
+              <div style="font-family:'Rajdhani',sans-serif;font-size:0.8rem;color:var(--text);margin-top:2px">
+                Avg amount: ₹${Math.round(group.map(d=>d.amount).reduce((a,b)=>a+b,0)/group.length).toLocaleString('en-IN')}
+                &nbsp;·&nbsp; Avg claims: ${(group.map(d=>d.claims).reduce((a,b)=>a+b,0)/group.length).toFixed(1)}
+              </div>
+            </div>
+            <div style="font-family:'Orbitron',monospace;font-size:1.1rem;font-weight:800;color:var(--danger)">${group.length}</div>
+          </div>`).join('')}
+      </div>` : ''}
+
+      <!-- Top triggered rules -->
+      ${topFlags.length > 0 ? `
+      <div style="margin-bottom:20px">
+        <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted);letter-spacing:2px;margin-bottom:10px">// MOST TRIGGERED FRAUD RULES</div>
+        ${topFlags.map(([flag,count])=>{
+          const pct = ((count/total)*100).toFixed(1);
+          return `<div style="margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:#ff6d00">${flag.replace(/_/g,' ')}</span>
+              <span style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted)">${count} cases (${pct}%)</span>
+            </div>
+            <div style="height:5px;background:var(--border);border-radius:1px">
+              <div style="height:100%;width:${pct}%;background:#ff6d00;border-radius:1px;transition:width 0.5s"></div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>` : ''}
+
+      <!-- Pattern insights -->
+      <div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted);letter-spacing:2px;margin-bottom:10px">// PATTERN INSIGHTS & RECOMMENDATIONS</div>
+        ${insights.map((ins,idx)=>{
+          const c = ins.severity==='CRITICAL'?'var(--danger)':ins.severity==='HIGH'?'#ff6d00':ins.severity==='MEDIUM'?'var(--warning)':'var(--success)';
+          const bg= ins.severity==='CRITICAL'?'rgba(255,45,107,0.06)':ins.severity==='HIGH'?'rgba(255,109,0,0.06)':ins.severity==='MEDIUM'?'rgba(255,170,0,0.06)':'rgba(0,200,150,0.06)';
+          return `<div style="padding:12px 14px;margin-bottom:8px;background:${bg};
+            border:1px solid ${c};border-left:3px solid ${c};
+            animation:fadeSlide 0.3s ease ${idx*0.08}s both">
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <span style="font-size:1rem;flex-shrink:0">${ins.icon}</span>
+              <div style="flex:1">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px">
+                  <span style="font-family:'Share Tech Mono',monospace;font-size:0.63rem;color:var(--text-bright);letter-spacing:1px">${ins.title}</span>
+                  <span style="font-family:'Share Tech Mono',monospace;font-size:0.52rem;color:${c};border:1px solid ${c};padding:1px 6px;white-space:nowrap">${ins.severity}</span>
+                </div>
+                <div style="font-family:'Rajdhani',sans-serif;font-size:0.85rem;color:var(--text);line-height:1.5">${ins.text}</div>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+
+    document.getElementById('reportFilename').textContent = `// ${filename.toUpperCase()} — ${total} RECORDS ANALYZED`;
+    document.getElementById('fraudReportContent').innerHTML = html;
+    document.getElementById('fraudReportOverlay').style.display = 'block';
+    document.getElementById('fraudReportPanel').style.display  = 'block';
+  }
+
+  function closeFraudReport() {
+    document.getElementById('fraudReportOverlay').style.display = 'none';
+    document.getElementById('fraudReportPanel').style.display   = 'none';
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeExplain(); closeFraudReport(); }
+  });
+
+
+  // ══════════════════════════════════════════
+  // NOTIFICATION CENTER
+  // ══════════════════════════════════════════
+  let notifications = JSON.parse(localStorage.getItem('fraudsys_notifs') || '[]');
+
+  function saveNotifications() {
+    localStorage.setItem('fraudsys_notifs', JSON.stringify(notifications.slice(0, 50)));
+  }
+
+  function addNotification(title, body, severity) {
+    const notif = {
+      id:        Date.now(),
+      title,
+      body,
+      severity,
+      time:      new Date().toLocaleTimeString(),
+      date:      new Date().toLocaleDateString(),
+      read:      false
+    };
+    notifications.unshift(notif);
+    saveNotifications();
+    renderNotifications();
+    updateNotifBadge();
+  }
+
+  function updateNotifBadge() {
+    const unread = notifications.filter(n => !n.read).length;
+    const badge  = document.getElementById('notifBadge');
+    if (!badge) return;
+    if (unread > 0) {
+      badge.style.display = 'block';
+      badge.textContent   = unread > 99 ? '99+' : unread;
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  function renderNotifications() {
+    const list = document.getElementById('notifList');
+    if (!list) return;
+    if (!notifications.length) {
+      list.innerHTML = `<div style="padding:20px;text-align:center;font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted)">// NO ALERTS YET</div>`;
+      return;
+    }
+    list.innerHTML = notifications.map(n => {
+      const sevColor = n.severity === 'CRITICAL' ? 'var(--danger)'
+                     : n.severity === 'HIGH'     ? '#ff6d00'
+                     : n.severity === 'MEDIUM'   ? 'var(--warning)'
+                     : 'var(--success)';
+      const bg = n.read ? 'transparent' : 'rgba(0,255,200,0.03)';
+      return `
+      <div onclick="markRead(${n.id})" style="padding:12px 14px;border-bottom:1px solid var(--border);
+        cursor:pointer;background:${bg};transition:background 0.2s"
+        onmouseover="this.style.background='rgba(0,255,200,0.05)'"
+        onmouseout="this.style.background='${bg}'">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+              ${!n.read ? `<span style="width:6px;height:6px;background:var(--accent);border-radius:50%;display:inline-block;flex-shrink:0"></span>` : ''}
+              <span style="font-family:'Share Tech Mono',monospace;font-size:0.62rem;color:var(--text-bright);letter-spacing:1px">${n.title}</span>
+            </div>
+            <div style="font-family:'Rajdhani',sans-serif;font-size:0.8rem;color:var(--text);line-height:1.4">${n.body}</div>
+          </div>
+          <span style="font-family:'Share Tech Mono',monospace;font-size:0.5rem;color:${sevColor};
+            border:1px solid ${sevColor};padding:1px 5px;white-space:nowrap;flex-shrink:0">${n.severity}</span>
+        </div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:0.52rem;color:var(--muted);margin-top:4px">${n.date} ${n.time}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function markRead(id) {
+    notifications = notifications.map(n => n.id === id ? {...n, read: true} : n);
+    saveNotifications();
+    renderNotifications();
+    updateNotifBadge();
+  }
+
+  function clearNotifications() {
+    notifications = [];
+    saveNotifications();
+    renderNotifications();
+    updateNotifBadge();
+  }
+
+  function toggleNotifications() {
+    const dd  = document.getElementById('notifDropdown');
+    const btn = document.getElementById('notifBtn');
+    const isOpen = dd.classList.contains('open');
+    if (isOpen) {
+      dd.classList.remove('open');
+      dd.style.display = 'none';
+      btn.style.borderColor = 'var(--border)';
+      btn.style.color = 'var(--muted)';
+    } else {
+      dd.classList.add('open');
+      dd.style.display = 'block';
+      btn.style.borderColor = 'var(--accent)';
+      btn.style.color = 'var(--accent)';
+      // Mark all as read after 2s
+      setTimeout(() => {
+        notifications = notifications.map(n => ({...n, read: true}));
+        saveNotifications();
+        updateNotifBadge();
+      }, 2000);
+    }
+  }
+
+  // Close notification dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    const wrapper = document.getElementById('notifWrapper');
+    if (wrapper && !wrapper.contains(e.target)) {
+      const dd = document.getElementById('notifDropdown');
+      const btn = document.getElementById('notifBtn');
+      if (dd && dd.classList.contains('open')) {
+        dd.classList.remove('open');
+        dd.style.display = 'none';
+        if (btn) { btn.style.borderColor='var(--border)'; btn.style.color='var(--muted)'; }
+      }
+    }
+  });
+
+  // ── Hook into showFraudReport to fire notifications ──
+  const _origShowFraudReport = showFraudReport;
+  showFraudReport = function(data, filename) {
+    _origShowFraudReport(data, filename);
+    if (!Array.isArray(data) || !data.length) return;
+    const total    = data.length;
+    const high     = data.filter(d => d.risk === 'High').length;
+    const anomalies= data.filter(d => d.anomaly && d.anomaly.isAnomaly).length;
+    const highPct  = ((high / total) * 100).toFixed(1);
+    const severity = highPct >= 40 ? 'CRITICAL' : highPct >= 20 ? 'HIGH' : highPct >= 10 ? 'MEDIUM' : 'LOW';
+
+    addNotification(
+      `Upload: ${filename}`,
+      `${total.toLocaleString()} records processed — ${high} HIGH risk (${highPct}%), ${anomalies} anomalies detected`,
+      severity
+    );
+
+    // Extra notification for critical flags
+    if (highPct >= 40) {
+      addNotification(
+        '🚨 CRITICAL FRAUD RATE DETECTED',
+        `${highPct}% of claims in "${filename}" are HIGH risk — immediate review recommended`,
+        'CRITICAL'
+      );
+    }
+    if (anomalies > total * 0.1) {
+      addNotification(
+        '🔬 HIGH ANOMALY RATE',
+        `${anomalies} statistical anomalies (${((anomalies/total)*100).toFixed(1)}%) detected in "${filename}"`,
+        'HIGH'
+      );
+    }
+  };
+
+  // Init on load
+  updateNotifBadge();
+  renderNotifications();
+
+  // ══════════════════════════════════════════
+  // EXPORT REPORT AS PDF
+  // ══════════════════════════════════════════
+  function exportReportPDF() {
+    const content  = document.getElementById('fraudReportContent');
+    const filename = document.getElementById('reportFilename').textContent;
+    if (!content) return;
+
+    // Open a clean print window
+    const win = window.open('', '_blank');
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>FraudSys — Fraud Pattern Report</title>
+        <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+        <style>
+          * { margin:0; padding:0; box-sizing:border-box; }
+          body { background:#fff; color:#111; font-family:'Rajdhani',sans-serif; padding:32px; }
+          :root {
+            --accent: #007a5e; --danger: #d32f2f; --warning: #f57c00;
+            --success: #388e3c; --border: #ddd; --muted: #888;
+            --text: #222; --text-bright: #000; --panel: #f9f9f9;
+          }
+
+          /* Header */
+          .pdf-header { border-bottom: 3px solid #007a5e; padding-bottom:16px; margin-bottom:24px; display:flex; justify-content:space-between; align-items:flex-end; }
+          .pdf-logo { font-family:'Orbitron',monospace; font-size:1.4rem; font-weight:900; color:#007a5e; letter-spacing:4px; }
+          .pdf-title { font-family:'Orbitron',monospace; font-size:0.9rem; color:#007a5e; letter-spacing:3px; }
+          .pdf-sub { font-family:'Share Tech Mono',monospace; font-size:0.6rem; color:#888; margin-top:3px; }
+          .pdf-date { font-family:'Share Tech Mono',monospace; font-size:0.6rem; color:#888; text-align:right; }
+
+          /* Override colors for print */
+          [style*="var(--danger)"] { color:#d32f2f !important; }
+          [style*="var(--accent)"] { color:#007a5e !important; }
+          [style*="var(--warning)"] { color:#f57c00 !important; }
+          [style*="var(--success)"] { color:#388e3c !important; }
+          [style*="var(--muted)"] { color:#888 !important; }
+          [style*="var(--text-bright)"] { color:#000 !important; }
+          [style*="var(--text)"] { color:#222 !important; }
+          [style*="var(--border)"] { border-color:#ddd !important; }
+          [style*="var(--panel)"], [style*="rgba(0,0,0"] { background:#f9f9f9 !important; }
+          [style*="rgba(255,45,107"] { background:#fff0f0 !important; border-color:#ffcccc !important; }
+          [style*="rgba(0,255,200"] { background:#f0fff8 !important; border-color:#b2dfdb !important; }
+          [style*="rgba(255,170,0"] { background:#fffde7 !important; border-color:#ffe082 !important; }
+          [style*="rgba(0,200,150"] { background:#f0fff8 !important; border-color:#b2dfdb !important; }
+
+          /* Fonts */
+          [style*="Orbitron"] { font-family:'Orbitron',monospace !important; }
+          [style*="Share Tech Mono"] { font-family:'Share Tech Mono',monospace !important; }
+
+          /* Ensure grid layouts print well */
+          @media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .pdf-header { page-break-after: avoid; }
+          }
+
+          .pdf-footer { margin-top:32px; padding-top:12px; border-top:1px solid #ddd;
+            font-family:'Share Tech Mono',monospace; font-size:0.55rem; color:#bbb;
+            display:flex; justify-content:space-between; }
+        </style>
+      </head>
+      <body>
+        <div class="pdf-header">
+          <div>
+            <div class="pdf-logo">⬡ FRAUDSYS</div>
+            <div class="pdf-title">FRAUD PATTERN REPORT</div>
+            <div class="pdf-sub">${filename}</div>
+          </div>
+          <div class="pdf-date">
+            Generated: ${new Date().toLocaleString()}<br>
+            NIIT University — Insurance Fraud Detection
+          </div>
+        </div>
+
+        ${content.innerHTML}
+
+        <div class="pdf-footer">
+          <span>FraudSys — Insurance Fraud Detection Platform</span>
+          <span>CONFIDENTIAL — For authorized personnel only</span>
+        </div>
+      </body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); }, 800);
+  }
+
+
+  // ══════════════════════════════════════════
+  // CSV GENERATOR
+  // ══════════════════════════════════════════
+
+  function switchUploadTab(tab) {
+    const isUpload = tab === 'upload';
+    document.getElementById('panelUpload').style.display   = isUpload ? 'block' : 'none';
+    document.getElementById('panelGenerate').style.display = isUpload ? 'none'  : 'block';
+    document.getElementById('tabUpload').style.background    = isUpload ? 'rgba(0,255,200,0.08)' : 'transparent';
+    document.getElementById('tabUpload').style.color         = isUpload ? 'var(--accent)' : 'var(--muted)';
+    document.getElementById('tabGenerate').style.background  = isUpload ? 'transparent' : 'rgba(0,255,200,0.08)';
+    document.getElementById('tabGenerate').style.color       = isUpload ? 'var(--muted)' : 'var(--accent)';
+    if (!isUpload) updateGenPreview();
+  }
+
+  function setGenSize(val, btn) {
+    document.getElementById('genSizeInput').value = val;
+    document.querySelectorAll('#panelGenerate button[onclick^="setGenSize"]').forEach(b => {
+      b.classList.remove('active');
+      b.style.borderColor = 'var(--border)';
+      b.style.color = 'var(--muted)';
+    });
+    btn.classList.add('active');
+    btn.style.borderColor = 'var(--accent)';
+    btn.style.color = 'var(--accent)';
+    updateGenPreview();
+  }
+
+  function getGenSize() {
+    return Math.min(200000, Math.max(100, parseInt(document.getElementById('genSizeInput')?.value) || 10000));
+  }
+
+  function updateGenPreview() {
+    const size     = getGenSize();
+    const estFraud = Math.round(size * 0.15);
+    const estLegit = size - estFraud;
+    const secs     = size > 50000 ? '~' + Math.ceil(size / 20000) + 's' : '< 1s';
+    const el = document.getElementById('genPreview');
+    if (!el) return;
+    el.innerHTML =
+      `<span style="color:var(--accent)">⬡ PREVIEW</span> &nbsp;|&nbsp; ` +
+      `<span style="color:var(--text-bright)">${size.toLocaleString('en-IN')} rows</span> &nbsp;|&nbsp; ` +
+      `<span style="color:var(--danger)">~${estFraud.toLocaleString('en-IN')} fraud</span> &nbsp;|&nbsp; ` +
+      `<span style="color:var(--success)">~${estLegit.toLocaleString('en-IN')} legit</span> &nbsp;|&nbsp; ` +
+      `Est. time: <span style="color:var(--muted)">${secs}</span>`;
+  }
+
+  function _rnd(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+  function _pick(arr)      { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  function generateCSVData(size, fraudRate, profile, addNoise, addEdge) {
+    const rows   = [];
+    const header = 'amount,claims,age,policy_duration,incident_type,witnesses,police_report,premium_amount,vehicle_age';
+
+    // Edge cases (2% if enabled)
+    const edgeCount = addEdge ? Math.floor(size * 0.02) : 0;
+
+    for (let i = 0; i < size; i++) {
+      const isFraud = Math.random() < fraudRate / 100;
+      let r = {};
+
+      if (i < edgeCount) {
+        // Edge cases
+        const ec = _rnd(1, 4);
+        if (ec === 1)      r = { amount:1,      claims:1,   age:18,  policy_duration:1,  incident_type:'fire',      witnesses:0, police_report:'no',  premium_amount:1000,  vehicle_age:0  };
+        else if (ec === 2) r = { amount:2000000, claims:50,  age:19,  policy_duration:1,  incident_type:'fire',      witnesses:0, police_report:'no',  premium_amount:5000,  vehicle_age:25 };
+        else if (ec === 3) r = { amount:500000,  claims:1,   age:70,  policy_duration:240,incident_type:'collision', witnesses:3, police_report:'yes', premium_amount:50000, vehicle_age:1  };
+        else               r = { amount:750000,  claims:25,  age:22,  policy_duration:2,  incident_type:'theft',     witnesses:0, police_report:'no',  premium_amount:10000, vehicle_age:15 };
+
+      } else if (isFraud) {
+        // Fraud profiles
+        let fp = _rnd(1, 6);
+        if (profile === 'fire_heavy')   fp = _pick([1,1,4,4,6]);
+        if (profile === 'theft_heavy')  fp = _pick([2,2,2,3,5]);
+        if (profile === 'new_policy')   fp = _pick([1,1,3,3,6]);
+        if (profile === 'young_driver') fp = _pick([4,4,4,1,6]);
+
+        if (fp === 1) {
+          r = { amount:_rnd(1200000,2000000), claims:_rnd(18,30), age:_rnd(19,27), policy_duration:_rnd(1,3),
+                incident_type:_pick(['fire','theft']), witnesses:0, police_report:'no',
+                premium_amount:_rnd(20000,50000), vehicle_age:_rnd(12,22) };
+        } else if (fp === 2) {
+          r = { amount:_rnd(700000,1400000), claims:_rnd(10,20), age:_rnd(22,35), policy_duration:_rnd(2,8),
+                incident_type:'theft', witnesses:0, police_report:'no',
+                premium_amount:_rnd(25000,45000), vehicle_age:_rnd(8,18) };
+        } else if (fp === 3) {
+          r = { amount:_rnd(400000,900000), claims:_rnd(5,15), age:_rnd(25,50), policy_duration:_rnd(1,6),
+                incident_type:_pick(['fire','theft','collision']), witnesses:_rnd(0,1),
+                police_report:_pick(['yes','no']), premium_amount:_rnd(5000,15000), vehicle_age:_rnd(5,15) };
+        } else if (fp === 4) {
+          r = { amount:_rnd(600000,1100000), claims:_rnd(8,18), age:_rnd(18,24), policy_duration:_rnd(1,5),
+                incident_type:'fire', witnesses:0, police_report:'no',
+                premium_amount:_rnd(20000,40000), vehicle_age:_rnd(14,25) };
+        } else if (fp === 5) {
+          r = { amount:_rnd(300000,700000), claims:_rnd(22,40), age:_rnd(30,55), policy_duration:_rnd(3,12),
+                incident_type:_pick(['collision','other']), witnesses:_rnd(0,1),
+                police_report:_pick(['yes','no']), premium_amount:_rnd(15000,35000), vehicle_age:_rnd(5,12) };
+        } else {
+          r = { amount:_rnd(450000,850000), claims:_rnd(12,20), age:_rnd(28,45), policy_duration:_rnd(4,10),
+                incident_type:_pick(['fire','theft']), witnesses:_rnd(0,1),
+                police_report:_pick(['yes','no']), premium_amount:_rnd(18000,40000), vehicle_age:_rnd(7,14) };
+        }
+
+      } else {
+        // Legitimate claims
+        const lp = _rnd(1, 4);
+        if (lp === 1) {
+          r = { amount:_rnd(10000,150000), claims:_rnd(1,5), age:_rnd(30,65), policy_duration:_rnd(24,120),
+                incident_type:'collision', witnesses:_rnd(1,3), police_report:'yes',
+                premium_amount:_rnd(8000,25000), vehicle_age:_rnd(1,8) };
+        } else if (lp === 2) {
+          r = { amount:_rnd(50000,400000), claims:_rnd(2,8), age:_rnd(25,60), policy_duration:_rnd(12,84),
+                incident_type:_pick(['collision','other']), witnesses:_rnd(1,2), police_report:'yes',
+                premium_amount:_rnd(12000,30000), vehicle_age:_rnd(2,10) };
+        } else if (lp === 3) {
+          r = { amount:_rnd(20000,280000), claims:_rnd(1,6), age:_rnd(45,70), policy_duration:_rnd(36,180),
+                incident_type:_pick(['collision','other']), witnesses:_rnd(1,3), police_report:'yes',
+                premium_amount:_rnd(10000,22000), vehicle_age:_rnd(3,12) };
+        } else {
+          r = { amount:_rnd(150000,500000), claims:_rnd(3,10), age:_rnd(28,55), policy_duration:_rnd(18,72),
+                incident_type:_pick(['collision','theft','other']), witnesses:_rnd(1,2), police_report:'yes',
+                premium_amount:_rnd(14000,32000), vehicle_age:_rnd(4,11) };
+        }
+      }
+
+      // Add noise
+      if (addNoise) {
+        r.amount          = Math.max(1000, r.amount + _rnd(-5000, 5000));
+        r.premium_amount  = Math.max(1000, r.premium_amount + _rnd(-500, 500));
+        r.vehicle_age     = Math.max(0,    r.vehicle_age + _rnd(-1, 1));
+        r.policy_duration = Math.max(1,    r.policy_duration + _rnd(-1, 1));
+      }
+
+      rows.push(r);
+    }
+
+    // Shuffle
+    for (let i = rows.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [rows[i], rows[j]] = [rows[j], rows[i]];
+    }
+
+    const csvRows = rows.map(r =>
+      `${r.amount},${r.claims},${r.age},${r.policy_duration},${r.incident_type},${r.witnesses},${r.police_report},${r.premium_amount},${r.vehicle_age}`
+    );
+    return header + '\n' + csvRows.join('\n');
+  }
+
+  async function generateAndUpload() {
+    const size     = getGenSize();
+    const fraud    = 15;
+    const profile  = 'balanced';
+    const addNoise = true;
+    const addEdge  = false;
+    const doDownload = false;
+    const filename = `generated_${size}_rows.csv`;
+
+    if (size > 200000) { alert('Max 2,00,000 rows supported ❌'); return; }
+
+    const btn       = document.getElementById('genBtn');
+    const progress  = document.getElementById('genProgress');
+    const fill      = document.getElementById('genProgressFill');
+    const progText  = document.getElementById('genProgressText');
+
+    btn.disabled = true;
+    progress.style.display = 'block';
+    fill.style.width = '10%';
+    progText.innerText = `// GENERATING ${size.toLocaleString('en-IN')} ROWS...`;
+
+    // Generate in next tick to allow UI to update
+    await new Promise(r => setTimeout(r, 30));
+
+    fill.style.width = '35%';
+    progText.innerText = '// BUILDING DATASET...';
+    await new Promise(r => setTimeout(r, 20));
+
+    const csvData = generateCSVData(size, fraud, profile, addNoise, addEdge);
+
+    fill.style.width = '60%';
+    progText.innerText = '// UPLOADING TO SERVER...';
+
+    // Optionally download
+    if (doDownload) {
+      const blob = new Blob([csvData], { type: 'text/csv' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Upload to server
+    const blob     = new Blob([csvData], { type: 'text/csv' });
+    const file     = new File([blob], filename, { type: 'text/csv' });
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('uploadedBy', localStorage.getItem('email') || 'admin');
+    formData.append('generated', 'true');
+    formData.append('genParams', JSON.stringify({ size, fraud, profile, addNoise, addEdge }));
+
+    try {
+      const t   = localStorage.getItem('token');
+      const res = await fetch('/upload', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + t },
+        body: formData
+      });
+      const data = await res.json();
+
+      fill.style.width = '100%';
+      progText.innerText = '// COMPLETE ✅';
+
+      // SOC log via notification
+      addNotification(
+        `⬡ DATASET GENERATED: ${filename}`,
+        `${size.toLocaleString('en-IN')} rows generated — fraud rate: ${fraud}%, profile: ${profile.replace(/_/g,' ').toUpperCase()}, edge cases: ${addEdge?'YES':'NO'}`,
+        fraud >= 30 ? 'HIGH' : 'MEDIUM'
+      );
+
+      setTimeout(() => {
+        progress.style.display = 'none';
+        fill.style.width = '0%';
+        btn.disabled = false;
+        showFraudReport(data, filename);
+      }, 800);
+
+    } catch(err) {
+      progText.innerText = '// UPLOAD FAILED ❌';
+      btn.disabled = false;
+    }
+  }
 
 </script>
 
@@ -1463,5 +2380,62 @@
   <div style="padding:20px" id="explainContent"><!-- filled by JS --></div>
 </div>
 
+
+<!-- ══════ FRAUD PATTERN REPORT MODAL ══════ -->
+<div id="fraudReportOverlay" onclick="closeFraudReport()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:2000;backdrop-filter:blur(3px)"></div>
+<div id="fraudReportPanel" style="display:none;position:fixed;top:50%;left:50%;
+  transform:translate(-50%,-50%);width:min(680px,96vw);max-height:88vh;overflow-y:auto;
+  background:var(--panel);border:1px solid var(--accent);z-index:2001;
+  box-shadow:0 0 60px rgba(0,255,200,0.2)">
+
+  <!-- Header -->
+  <div style="position:sticky;top:0;z-index:3;background:var(--panel);border-bottom:1px solid var(--border)">
+    <div style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-family:'Orbitron',monospace;font-size:0.8rem;font-weight:900;
+          color:var(--accent);letter-spacing:4px;text-shadow:0 0 12px rgba(0,255,200,0.4)">
+          ⬡ FRAUD PATTERN REPORT
+        </div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--muted);
+          letter-spacing:2px;margin-top:3px" id="reportFilename">// ANALYSIS COMPLETE</div>
+      </div>
+      <button onclick="closeFraudReport()" style="background:transparent;border:1px solid var(--border);
+        color:var(--muted);font-size:1rem;padding:5px 12px;cursor:pointer;font-family:monospace;
+        transition:all 0.2s"
+        onmouseover="this.style.borderColor='var(--danger)';this.style.color='var(--danger)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">✕</button>
+    </div>
+    <!-- Severity bar -->
+    <div id="reportSeverityBar" style="height:3px;background:linear-gradient(90deg,var(--success),var(--warning),var(--danger))"></div>
+  </div>
+
+  <div style="padding:20px" id="fraudReportContent"></div>
+
+  <!-- Footer -->
+  <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;background:rgba(0,0,0,0.2)">
+    <button onclick="closeFraudReport()" style="background:transparent;border:1px solid var(--border);
+      color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:2px;
+      padding:8px 20px;cursor:pointer;transition:all 0.2s"
+      onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+      onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+      CLOSE REPORT
+    </button>
+    <button onclick="exportReportPDF()" style="background:rgba(255,45,107,0.08);border:1px solid var(--danger);
+      color:var(--danger);font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:2px;
+      padding:8px 20px;cursor:pointer;transition:all 0.2s"
+      onmouseover="this.style.background='rgba(255,45,107,0.18)'"
+      onmouseout="this.style.background='rgba(255,45,107,0.08)'">
+      ⬇ EXPORT PDF
+    </button>
+    <button onclick="closeFraudReport();showSection('analystDashboard',document.querySelector('.admin-nav'))"
+      style="background:rgba(0,255,200,0.08);border:1px solid var(--accent);color:var(--accent);
+      font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:2px;
+      padding:8px 20px;cursor:pointer;transition:all 0.2s"
+      onmouseover="this.style.background='rgba(0,255,200,0.15)'"
+      onmouseout="this.style.background='rgba(0,255,200,0.08)'">
+      ◈ VIEW DASHBOARD
+    </button>
+  </div>
+</div>
 </body>
 </html>
