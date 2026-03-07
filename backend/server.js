@@ -533,6 +533,14 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     // Delete old results first to free memory
     await Result.deleteMany({});
 
+    // Create upload history record first so we have the ID to tag results
+    const uploadRecord = await UploadHistory.create({
+      filename: req.file.originalname || req.file.filename,
+      totalRows: 0, highRisk: 0, mediumRisk: 0, lowRisk: 0,
+      anomalies: 0, uploadedBy: uploader
+    });
+    const currentUploadId = uploadRecord._id;
+
     let high = 0, medium = 0, low = 0, anomalies = 0;
     let summaryRows = []; // keep only first 500 for the response
 
@@ -564,7 +572,8 @@ app.post("/upload", upload.single("file"), async (req, res) => {
           risk: p.risk, confidence: p.confidence, riskScore: p.risk_score,
           probabilities: p.probabilities,
           anomaly: { isAnomaly: p.anomaly.is_anomaly, anomalyScore: p.anomaly.anomaly_score },
-          flags: p.flags || []
+          flags: p.flags || [],
+          uploadId: currentUploadId
         };
       });
 
@@ -587,10 +596,10 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 
     const totalRows = high + medium + low;
 
-    await UploadHistory.create({
-      filename: req.file.originalname || req.file.filename,
-      totalRows: totalRows, highRisk: high, mediumRisk: medium, lowRisk: low,
-      anomalies, uploadedBy: uploader
+    // Update upload history record with final stats
+    await UploadHistory.findByIdAndUpdate(currentUploadId, {
+      totalRows: totalRows, highRisk: high, mediumRisk: medium,
+      lowRisk: low, anomalies
     });
 
     const highRatioPct = totalRows ? (high / totalRows) * 100 : 0;
