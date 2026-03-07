@@ -139,8 +139,11 @@ const UserSchema = new mongoose.Schema({
 const User = mongoose.model("User", UserSchema);
 
 const ResultSchema = new mongoose.Schema({
-  amount: Number, claims: Number, risk: String,
-  confidence: Number, riskScore: Number,
+  amount: Number, claims: Number,
+  age: Number, policyDuration: Number,
+  incidentType: String, witnesses: Number,
+  policeReport: Boolean, premiumAmount: Number, vehicleAge: Number,
+  risk: String, confidence: Number, riskScore: Number,
   probabilities: { Low: Number, Medium: Number, High: Number },
   anomaly: { isAnomaly: Boolean, anomalyScore: Number },
   flags: [String],
@@ -499,32 +502,51 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     const { predict } = require("./predict_batch.js");
     const csvData = fs.readFileSync(req.file.path, "utf8");
     const csvLines = csvData.trim().split("\n");
-    const headers  = csvLines[0].toLowerCase().split(",").map(h => h.trim());
-    const amtIdx   = headers.indexOf("amount");
-    const clmIdx   = headers.indexOf("claims");
+    const headers  = csvLines[0].toLowerCase().split(",").map(h => h.trim().replace(/[^a-z_]/g, ""));
+    const idx = (name) => headers.indexOf(name);
 
-    if (amtIdx === -1 || clmIdx === -1) {
+    if (idx("amount") === -1 || idx("claims") === -1) {
       return res.status(400).json({ error: "CSV must have 'amount' and 'claims' columns ❌" });
     }
 
     const predictions = csvLines.slice(1)
       .filter(l => l.trim())
       .map(line => {
-        const cols   = line.split(",");
-        const amount = parseFloat(cols[amtIdx]) || 0;
-        const claims = parseFloat(cols[clmIdx]) || 0;
-        return predict(amount, claims);
+        const cols = line.split(",");
+        const g    = (name) => cols[idx(name)] !== undefined ? cols[idx(name)].trim() : null;
+        const policeRaw = g("police_report");
+        const policeVal = policeRaw !== null
+          ? (policeRaw.toLowerCase() === "yes" || policeRaw === "1" || policeRaw.toLowerCase() === "true")
+          : true;
+        return predict({
+          amount:         parseFloat(g("amount"))          || 0,
+          claims:         parseFloat(g("claims"))          || 0,
+          age:            parseFloat(g("age"))             || 0,
+          policyDuration: parseFloat(g("policy_duration")) || 0,
+          incidentType:   g("incident_type")               || "unknown",
+          witnesses:      g("witnesses") !== null ? parseInt(g("witnesses")) : 1,
+          policeReport:   policeVal,
+          premiumAmount:  parseFloat(g("premium_amount"))  || 0,
+          vehicleAge:     parseFloat(g("vehicle_age"))     || 0,
+        });
       });
 
     const results = predictions.map(p => ({
-      amount:        p.amount,
-      claims:        p.claims,
-      risk:          p.risk,
-      confidence:    p.confidence,
-      riskScore:     p.risk_score,
-      probabilities: p.probabilities,
-      anomaly:       { isAnomaly: p.anomaly.is_anomaly, anomalyScore: p.anomaly.anomaly_score },
-      flags:         p.flags || []
+      amount:         p.amount,
+      claims:         p.claims,
+      age:            p.age,
+      policyDuration: p.policyDuration,
+      incidentType:   p.incidentType,
+      witnesses:      p.witnesses,
+      policeReport:   p.policeReport,
+      premiumAmount:  p.premiumAmount,
+      vehicleAge:     p.vehicleAge,
+      risk:           p.risk,
+      confidence:     p.confidence,
+      riskScore:      p.risk_score,
+      probabilities:  p.probabilities,
+      anomaly:        { isAnomaly: p.anomaly.is_anomaly, anomalyScore: p.anomaly.anomaly_score },
+      flags:          p.flags || []
     }));
 
 
@@ -543,7 +565,17 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     });
 
     const highRatioPct = results.length ? (high / results.length) * 100 : 0;
-    if (highRatioPct >= 50) {
+    const isGenerated  = req.body.generated === 'true';
+    const genParams    = isGenerated ? (() => { try { return JSON.parse(req.body.genParams||'{}'); } catch(e){return{};} })() : null;
+
+    // SOC log — generated dataset gets special entry
+    if (isGenerated) {
+      const genSev = genParams.fraud >= 30 ? "HIGH" : "MEDIUM";
+      await logEvent(genSev, "UPLOAD",
+        `Synthetic dataset generated & uploaded`,
+        `${uploader} generated ${results.length.toLocaleString()} rows — fraud rate: ${genParams.fraud}%, profile: ${genParams.profile}, edge cases: ${genParams.addEdge}, high-risk found: ${high} (${highRatioPct.toFixed(1)}%)`,
+        uploader, req, { generated: true, size: results.length, fraudRate: genParams.fraud, profile: genParams.profile, highRisk: high, anomalies });
+    } else if (highRatioPct >= 50) {
       await logEvent("HIGH", "UPLOAD", "Suspicious upload — high fraud ratio",
         `${uploader} uploaded ${req.file.originalname}: ${highRatioPct.toFixed(1)}% high-risk records (${high}/${results.length})`,
         uploader, req, { filename: req.file.originalname, highRisk: high, total: results.length });
