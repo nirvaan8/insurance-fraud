@@ -147,6 +147,7 @@ const ResultSchema = new mongoose.Schema({
   age: Number, policyDuration: Number,
   incidentType: String, witnesses: Number,
   policeReport: Boolean, premiumAmount: Number, vehicleAge: Number,
+  location: { type: String, default: "" },
   risk: String, confidence: Number, riskScore: Number,
   probabilities: { Low: Number, Medium: Number, High: Number },
   anomaly: { isAnomaly: Boolean, anomalyScore: Number },
@@ -418,20 +419,6 @@ app.post("/login", async (req, res) => {
       `Password verified for ${email}, redirecting to mandatory TOTP setup`, email, req);
     return res.json({ requiresTOTPSetup: true, email, token: tempToken, role: user.role, message: "Setup Google Authenticator to continue" });
 
-    // Dead code below kept for reference only — email OTP no longer used
-    const otp = generateOTP();
-    user.pendingOTP   = await bcrypt.hash(otp, 8);
-    user.otpExpiresAt = new Date(Date.now() + 5 * 60_000);
-    user.failedLogins = 0;
-    user.lockedUntil  = null;
-    await user.save();
-
-    await sendOTP(email, otp);
-    await logEvent("INFO", "AUTH", "OTP sent for 2FA",
-      `Password verified for ${email}, OTP dispatched`, email, req);
-
-    // Return partial — frontend must now submit OTP
-    res.json({ requiresOTP: true, email, message: "OTP sent to your email ✅" });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ error: "Login error ❌" });
@@ -607,6 +594,30 @@ app.post("/unlock-account", async (req, res) => {
   }
 });
 
+/* GEO STATS — fraud counts aggregated by location */
+app.get("/geo-stats", async (req, res) => {
+  try {
+    const stats = await Result.aggregate([
+      { $match: { location: { $ne: "", $exists: true } } },
+      { $group: {
+          _id: "$location",
+          total:    { $sum: 1 },
+          high:     { $sum: { $cond: [{ $eq: ["$risk","High"] },   1, 0] } },
+          medium:   { $sum: { $cond: [{ $eq: ["$risk","Medium"] }, 1, 0] } },
+          low:      { $sum: { $cond: [{ $eq: ["$risk","Low"] },    1, 0] } },
+          anomalies:{ $sum: { $cond: ["$anomaly.isAnomaly", 1, 0] } },
+          avgScore: { $avg: "$riskScore" }
+      }},
+      { $sort: { total: -1 } },
+      { $limit: 200 }
+    ]);
+    res.json(stats);
+  } catch(err) {
+    console.error("Geo stats error:", err.message);
+    res.status(500).json({ error: "Failed to fetch geo stats" });
+  }
+});
+
 app.get("/results", async (req, res) => {
   try {
     const uploadId = req.query.uploadId;
@@ -635,7 +646,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     return res.status(400).json({ error: "No file uploaded ❌" });
   }
 
-  const uploader = req.body.uploadedBy || "admin";
+  const uploader = (req.body && req.body.uploadedBy) ? req.body.uploadedBy : (req.user ? req.user.email : "admin");
   await logEvent("INFO", "UPLOAD", "CSV upload started",
     `${uploader} started uploading ${req.file.originalname}`,
     uploader, req, { filename: req.file.originalname, size: req.file.size });
@@ -687,6 +698,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
           policeReport:   policeVal,
           premiumAmount:  parseFloat(g("premium_amount"))  || 0,
           vehicleAge:     parseFloat(g("vehicle_age"))     || 0,
+          location:       (g("location") || "").trim(),
         });
         return {
           amount: p.amount, claims: p.claims, age: p.age,
@@ -696,6 +708,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
           risk: p.risk, confidence: p.confidence, riskScore: p.risk_score,
           probabilities: p.probabilities,
           anomaly: { isAnomaly: p.anomaly.is_anomaly, anomalyScore: p.anomaly.anomaly_score },
+          location:  p.location || "",
           flags: p.flags || [],
           uploadId: currentUploadId
         };
@@ -755,6 +768,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     res.json(summaryRows);
   } catch (err) {
     console.error("ML Batch Error:", err.message);
+    console.error("Stack:", err.stack);
     await logEvent("HIGH", "UPLOAD", "ML batch processing failed",
       `Error: ${err.message}`, uploader, req);
     res.status(500).json({ error: "ML processing failed ❌: " + err.message });
