@@ -473,13 +473,23 @@ app.post("/unlock-account", async (req, res) => {
 app.get("/results", async (req, res) => {
   try {
     const uploadId = req.query.uploadId;
-    let results;
-    if (uploadId && uploadId.match(/^[a-f\d]{24}$/i)) {
-      results = await Result.find({ uploadId }).sort({ uploadedAt: -1 }).limit(500);
-    } else {
-      results = await Result.find().sort({ uploadedAt: -1 }).limit(500);
+    const query    = (uploadId && uploadId.match(/^[a-f\d]{24}$/i)) ? { uploadId } : {};
+
+    // Stream all results in batches to avoid OOM
+    const PAGE    = 5000;
+    const total   = await Result.countDocuments(query);
+    let   allDocs = [];
+
+    for (let skip = 0; skip < total; skip += PAGE) {
+      const batch = await Result.find(query)
+        .sort({ uploadedAt: -1 })
+        .skip(skip)
+        .limit(PAGE)
+        .lean();
+      allDocs = allDocs.concat(batch);
     }
-    res.json(results);
+
+    res.json(allDocs);
   } catch (err) {
     console.error("Results fetch error:", err.message);
     res.status(500).json({ error: "Failed to fetch results ❌" });
