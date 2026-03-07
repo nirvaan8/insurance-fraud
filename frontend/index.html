@@ -11,6 +11,9 @@
   </script>
   <title>FraudSys — Dashboard</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     /* ── ADMIN DASHBOARD ── */
@@ -267,6 +270,9 @@
       <span class="nav-icon">⚠</span> SOC EVENTS
     </div>
 
+    <div class="nav-item" onclick="showSection('geoHeatmap', this)">
+      <span class="nav-icon">◎</span> GEO HEATMAP
+    </div>
     <div class="nav-item" onclick="showSection('accountSettings', this)">
       <span class="nav-icon">⚙</span> ACCOUNT
     </div>
@@ -628,6 +634,67 @@
     </div>
 
 
+    <!-- ══════ GEO HEATMAP ══════ -->
+    <div id="geoHeatmap" style="display:none">
+      <div class="section-panel">
+        <div class="section-header">
+          <div class="panel-title">FRAUD DENSITY MAP — INDIA</div>
+          <div id="geoTotal" style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--muted)">—</div>
+        </div>
+
+        <!-- Stat cards -->
+        <div class="admin-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+          <div class="admin-card red">
+            <div class="admin-card-label">HOT ZONES</div>
+            <div class="admin-card-value" id="geoHotZones">—</div>
+            <div class="admin-card-sub">Cities with high fraud</div>
+          </div>
+          <div class="admin-card cyan">
+            <div class="admin-card-label">TOTAL LOCATIONS</div>
+            <div class="admin-card-value" id="geoLocCount">—</div>
+            <div class="admin-card-sub">Unique cities tracked</div>
+          </div>
+          <div class="admin-card yellow">
+            <div class="admin-card-label">TOP FRAUD CITY</div>
+            <div class="admin-card-value" id="geoTopCity" style="font-size:1rem">—</div>
+            <div class="admin-card-sub" id="geoTopCityCount">—</div>
+          </div>
+          <div class="admin-card">
+            <div class="admin-card-label">AVG RISK SCORE</div>
+            <div class="admin-card-value" id="geoAvgScore">—</div>
+            <div class="admin-card-sub">Across all locations</div>
+          </div>
+        </div>
+
+        <!-- Map -->
+        <div style="position:relative;border:1px solid var(--border);margin-bottom:16px">
+          <div id="fraudMap" style="height:500px;width:100%;z-index:1"></div>
+          <div id="mapOverlay" style="position:absolute;inset:0;background:rgba(2,13,10,0.85);display:flex;align-items:center;justify-content:center;z-index:10;font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--muted)">
+            // LOADING MAP DATA...
+          </div>
+        </div>
+
+        <!-- Top cities table -->
+        <div class="section-panel" style="margin-top:0">
+          <div class="section-header">
+            <div class="panel-title">TOP FRAUD CITIES</div>
+          </div>
+          <table id="geoTable">
+            <thead>
+              <tr>
+                <th>#</th><th>CITY</th><th>TOTAL</th><th>HIGH RISK</th>
+                <th>MEDIUM</th><th>LOW</th><th>ANOMALIES</th><th>AVG SCORE</th><th>FRAUD RATE</th>
+              </tr>
+            </thead>
+            <tbody id="geoTableBody">
+              <tr><td colspan="9" class="empty-state">// NO LOCATION DATA — ADD location COLUMN TO CSV</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+
     <!-- ══════ ACCOUNT SETTINGS ══════ -->
     <div id="accountSettings" style="display:none">
       <div class="section-panel">
@@ -729,7 +796,7 @@
 
   // Show/hide section
   function showSection(id, navEl) {
-    ['analystDashboard','analystHistory','adminUpload','adminHistory','adminUsers','adminSOC','accountSettings'].forEach(s => {
+    ['analystDashboard','analystHistory','adminUpload','adminHistory','adminUsers','adminSOC','accountSettings','geoHeatmap'].forEach(s => {
       const el = document.getElementById(s);
       if (el) el.style.display = 'none';
     });
@@ -743,6 +810,7 @@
       analystHistory: ['UPLOAD HISTORY', '// BROWSE PAST DATA INJECTIONS'],
       adminUpload: ['INJECT DATA', '// UPLOAD CSV FOR ML PROCESSING'],
       accountSettings: ['ACCOUNT SETTINGS', '// MANAGE YOUR SECURITY PREFERENCES'],
+      geoHeatmap: ['GEO FRAUD HEATMAP', '// LOCATION-BASED FRAUD DENSITY ANALYSIS'],
       adminHistory: ['UPLOAD HISTORY', '// ALL PAST DATA INJECTIONS'],
       adminUsers: ['OPERATIVES', '// REGISTERED SYSTEM USERS'],
       adminSOC: ['SOC EVENT LOG', '// SECURITY OPERATIONS CENTER — THREAT FEED'],
@@ -758,6 +826,7 @@
     if (id === 'adminUpload') loadAdminStats();
     if (id === 'analystDashboard') { if (!window.chartsInitialized) { initCharts(); window.chartsInitialized = true; } loadResults(); }
     if (id === 'accountSettings') { loadTOTPStatus(); }
+    if (id === 'geoHeatmap') { loadGeoHeatmap(); }
   }
 
   window.onload = async function () {
@@ -2279,7 +2348,8 @@
 
   function generateCSVData(size, fraudRate, profile, addNoise, addEdge) {
     const rows   = [];
-    const header = 'amount,claims,age,policy_duration,incident_type,witnesses,police_report,premium_amount,vehicle_age';
+    const header = 'amount,claims,age,policy_duration,incident_type,witnesses,police_report,premium_amount,vehicle_age,location';
+    const CITIES = ['Mumbai','Delhi','Bangalore','Hyderabad','Ahmedabad','Chennai','Kolkata','Pune','Jaipur','Lucknow','Surat','Nagpur','Indore','Bhopal','Patna','Vadodara','Ludhiana','Rajkot','Meerut','Varanasi','Noida','Gurugram','Chandigarh','Coimbatore','Guwahati','Raipur','Jodhpur','Madurai','Kota','Ranchi','Amritsar','Visakhapatnam','Aurangabad','Nashik','Thane','Mysuru','Vijayawada','Gwalior','Jabalpur','Agra'];
 
     // Edge cases (2% if enabled)
     const edgeCount = addEdge ? Math.floor(size * 0.02) : 0;
@@ -2363,6 +2433,11 @@
       rows.push(r);
     }
 
+    // Assign random city location to each row
+    rows.forEach(r => {
+      r.location = CITIES[Math.floor(Math.random() * CITIES.length)];
+    });
+
     // Shuffle
     for (let i = rows.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -2370,7 +2445,7 @@
     }
 
     const csvRows = rows.map(r =>
-      `${r.amount},${r.claims},${r.age},${r.policy_duration},${r.incident_type},${r.witnesses},${r.police_report},${r.premium_amount},${r.vehicle_age}`
+      `${r.amount},${r.claims},${r.age},${r.policy_duration},${r.incident_type},${r.witnesses},${r.police_report},${r.premium_amount},${r.vehicle_age},${r.location}`
     );
     return header + '\n' + csvRows.join('\n');
   }
@@ -2578,6 +2653,150 @@
         addNotification('⚠ Google Authenticator Disabled', 'Account now uses email OTP for 2FA', 'HIGH');
       }
     } catch(e) {}
+  }
+
+
+  // ══════════════════════════════════════════
+  // GEO HEATMAP
+  // ══════════════════════════════════════════
+
+  // Indian city coordinates lookup
+  const CITY_COORDS = {
+    'mumbai':      [19.0760, 72.8777], 'delhi':       [28.6139, 77.2090],
+    'bangalore':   [12.9716, 77.5946], 'bengaluru':   [12.9716, 77.5946],
+    'hyderabad':   [17.3850, 78.4867], 'ahmedabad':   [23.0225, 72.5714],
+    'chennai':     [13.0827, 80.2707], 'kolkata':     [22.5726, 88.3639],
+    'pune':        [18.5204, 73.8567], 'jaipur':      [26.9124, 75.7873],
+    'lucknow':     [26.8467, 80.9462], 'kanpur':      [26.4499, 80.3319],
+    'nagpur':      [21.1458, 79.0882], 'indore':      [22.7196, 75.8577],
+    'thane':       [19.2183, 72.9781], 'bhopal':      [23.2599, 77.4126],
+    'visakhapatnam':[17.6868,83.2185], 'patna':       [25.5941, 85.1376],
+    'vadodara':    [22.3072, 73.1812], 'ludhiana':    [30.9010, 75.8573],
+    'agra':        [27.1767, 78.0081], 'nashik':      [19.9975, 73.7898],
+    'meerut':      [28.9845, 77.7064], 'rajkot':      [22.3039, 70.8022],
+    'varanasi':    [25.3176, 82.9739], 'srinagar':    [34.0837, 74.7973],
+    'aurangabad':  [19.8762, 75.3433], 'dhanbad':     [23.7957, 86.4304],
+    'amritsar':    [31.6340, 74.8723], 'allahabad':   [25.4358, 81.8463],
+    'prayagraj':   [25.4358, 81.8463], 'ranchi':      [23.3441, 85.3096],
+    'coimbatore':  [11.0168, 76.9558], 'jabalpur':    [23.1815, 79.9864],
+    'gwalior':     [26.2183, 78.1828], 'vijayawada':  [16.5062, 80.6480],
+    'jodhpur':     [26.2389, 73.0243], 'madurai':     [9.9252,  78.1198],
+    'raipur':      [21.2514, 81.6296], 'kota':        [25.2138, 75.8648],
+    'chandigarh':  [30.7333, 76.7794], 'guwahati':    [26.1445, 91.7362],
+    'solapur':     [17.6805, 75.9064], 'hubli':       [15.3647, 75.1240],
+    'mysore':      [12.2958, 76.6394], 'mysuru':      [12.2958, 76.6394],
+    'tiruchirappalli':[10.7905,78.7047],'bareilly':   [28.3670, 79.4304],
+    'aligarh':     [27.8974, 78.0880], 'moradabad':   [28.8386, 78.7733],
+    'noida':       [28.5355, 77.3910], 'gurugram':    [28.4595, 77.0266],
+    'faridabad':   [28.4089, 77.3178], 'ghaziabad':   [28.6692, 77.4538],
+    'surat':       [21.1702, 72.8311], 'new delhi':   [28.6139, 77.2090],
+  };
+
+  let _leafletMap = null;
+  let _heatLayer  = null;
+
+  async function loadGeoHeatmap() {
+    try {
+      const res  = await authFetch("/geo-stats");
+      const data = await res.json();
+
+      if (!Array.isArray(data) || data.length === 0) {
+        document.getElementById("mapOverlay").innerHTML =
+          '// NO LOCATION DATA — ADD A <strong style="color:var(--accent)">location</strong> COLUMN TO YOUR CSV';
+        return;
+      }
+
+      // Stat cards
+      const hotZones = data.filter(d => (d.high / d.total) > 0.4).length;
+      const topCity  = data[0];
+      const avgScore = Math.round(data.reduce((s,d) => s + (d.avgScore||0), 0) / data.length);
+      document.getElementById("geoHotZones").innerText  = hotZones;
+      document.getElementById("geoLocCount").innerText  = data.length;
+      document.getElementById("geoTopCity").innerText   = topCity._id;
+      document.getElementById("geoTopCityCount").innerText = topCity.total.toLocaleString("en-IN") + " cases";
+      document.getElementById("geoAvgScore").innerText  = avgScore;
+      document.getElementById("geoTotal").innerText     = data.reduce((s,d)=>s+d.total,0).toLocaleString("en-IN") + " TOTAL CASES";
+
+      // Build heatmap points
+      const heatPoints = [];
+      data.forEach(d => {
+        const key    = d._id.toLowerCase().trim();
+        const coords = CITY_COORDS[key];
+        if (coords) {
+          const intensity = Math.min(1, d.high / Math.max(1, d.total));
+          heatPoints.push([coords[0], coords[1], intensity * (d.total / data[0].total)]);
+        }
+      });
+
+      // Init Leaflet map
+      if (!_leafletMap) {
+        _leafletMap = L.map('fraudMap', { zoomControl: true }).setView([20.5937, 78.9629], 5);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+          attribution: '©OpenStreetMap ©CartoDB',
+          maxZoom: 18
+        }).addTo(_leafletMap);
+      }
+
+      // Remove old heat layer
+      if (_heatLayer) { _leafletMap.removeLayer(_heatLayer); }
+
+      // Add heatmap
+      _heatLayer = L.heatLayer(heatPoints, {
+        radius:  35,
+        blur:    25,
+        maxZoom: 10,
+        gradient: { 0.2: '#00ffc8', 0.5: '#ffaa00', 0.8: '#ff2d6b', 1.0: '#ff0000' }
+      }).addTo(_leafletMap);
+
+      // Add city markers
+      data.forEach(d => {
+        const key    = d._id.toLowerCase().trim();
+        const coords = CITY_COORDS[key];
+        if (!coords) return;
+        const fraudRate = Math.round((d.high / d.total) * 100);
+        const color     = fraudRate >= 40 ? '#ff2d6b' : fraudRate >= 20 ? '#ffaa00' : '#00ffc8';
+        const marker = L.circleMarker(coords, {
+          radius: Math.max(5, Math.min(18, Math.log(d.total + 1) * 3)),
+          color, fillColor: color, fillOpacity: 0.5, weight: 1.5
+        }).addTo(_leafletMap);
+        marker.bindPopup(`
+          <div style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;background:#040f0c;color:#a0d4c0;padding:8px;border:1px solid #0a2a1f;min-width:160px">
+            <div style="color:#00ffc8;font-weight:bold;margin-bottom:6px">${d._id.toUpperCase()}</div>
+            <div>Total: <span style="color:#fff">${d.total}</span></div>
+            <div>High Risk: <span style="color:#ff2d6b">${d.high}</span></div>
+            <div>Anomalies: <span style="color:#ffaa00">${d.anomalies}</span></div>
+            <div>Fraud Rate: <span style="color:${color}">${fraudRate}%</span></div>
+            <div>Avg Score: <span style="color:#fff">${Math.round(d.avgScore||0)}</span></div>
+          </div>
+        `, { className: 'geo-popup' });
+      });
+
+      // Hide overlay
+      document.getElementById("mapOverlay").style.display = "none";
+      setTimeout(() => _leafletMap.invalidateSize(), 100);
+
+      // Table
+      const tbody = document.getElementById("geoTableBody");
+      tbody.innerHTML = data.slice(0, 50).map((d, i) => {
+        const fraudRate = Math.round((d.high / d.total) * 100);
+        const color = fraudRate >= 40 ? 'var(--danger)' : fraudRate >= 20 ? '#ffaa00' : 'var(--success)';
+        return `<tr>
+          <td>${i+1}</td>
+          <td style="color:var(--text-bright);font-weight:600">${d._id}</td>
+          <td>${d.total.toLocaleString("en-IN")}</td>
+          <td style="color:var(--danger)">${d.high}</td>
+          <td style="color:#ffaa00">${d.medium}</td>
+          <td style="color:var(--success)">${d.low}</td>
+          <td>${d.anomalies}</td>
+          <td>${Math.round(d.avgScore||0)}</td>
+          <td style="color:${color};font-weight:600">${fraudRate}%</td>
+        </tr>`;
+      }).join('');
+
+    } catch(err) {
+      console.error("Geo heatmap error:", err);
+      document.getElementById("mapOverlay").innerHTML = "// ERROR LOADING MAP DATA";
+    }
   }
 
 </script>
