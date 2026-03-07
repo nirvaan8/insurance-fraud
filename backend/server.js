@@ -1,334 +1,766 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <script>
-    (function() {
-      var t = localStorage.getItem('theme') || 'dark';
-      document.documentElement.setAttribute('data-theme', t);
-    })();
-  </script>
-  <title>FraudSys — Login</title>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&family=Rajdhani:wght@400;600;700&display=swap');
-    :root{--bg:#020d0a;--panel:#040f0c;--border:#0a2a1f;--cyan:#00ffc8;--red:#ff2d6b;--muted:#2a5a48;--text:#a0d4c0;}
-    *{box-sizing:border-box;margin:0;padding:0;}
-    body{background:var(--bg);font-family:'Rajdhani',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;}
-    body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,255,200,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,200,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;}
-    body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.07) 2px,rgba(0,0,0,0.07) 4px);pointer-events:none;z-index:10;}
-    .login-box{position:relative;z-index:20;width:440px;background:var(--panel);border:1px solid var(--border);padding:48px 40px;animation:fadein 0.6s ease;}
-    @keyframes fadein{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-    .login-box::before{content:'';position:absolute;top:-1px;left:-1px;width:16px;height:16px;border-top:2px solid var(--cyan);border-left:2px solid var(--cyan);box-shadow:0 0 10px var(--cyan);}
-    .login-box::after{content:'';position:absolute;bottom:-1px;right:-1px;width:16px;height:16px;border-bottom:2px solid var(--cyan);border-right:2px solid var(--cyan);box-shadow:0 0 10px var(--cyan);}
-    .logo{font-family:'Orbitron',monospace;font-size:1.8rem;font-weight:900;color:var(--cyan);text-shadow:0 0 20px var(--cyan);letter-spacing:4px;margin-bottom:4px;}
-    .logo-sub{font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:3px;margin-bottom:28px;}
-    .step-indicator{font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--muted);letter-spacing:2px;margin-bottom:24px;display:flex;gap:8px;align-items:center;}
-    .step{padding:3px 8px;border:1px solid var(--border);font-size:0.55rem;white-space:nowrap;}
-    .step.active{border-color:var(--cyan);color:var(--cyan);}
-    .step.done{border-color:var(--muted);color:var(--muted);text-decoration:line-through;}
-    label{display:block;font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:2px;margin-bottom:6px;}
-    input{width:100%;background:rgba(0,0,0,0.4);border:1px solid var(--border);color:var(--text);padding:11px 14px;font-family:'Share Tech Mono',monospace;font-size:0.8rem;letter-spacing:1px;outline:none;margin-bottom:20px;transition:border 0.2s;}
-    input:focus{border-color:var(--cyan);box-shadow:0 0 0 1px rgba(0,255,200,0.2);}
-    .otp-input{font-size:1.5rem;letter-spacing:12px;text-align:center;padding:16px;}
-    .btn{width:100%;background:transparent;border:1px solid var(--cyan);color:var(--cyan);font-family:'Orbitron',monospace;font-size:0.75rem;font-weight:700;letter-spacing:3px;padding:12px;cursor:pointer;transition:all 0.2s;}
-    .btn:hover{background:rgba(0,255,200,0.08);box-shadow:0 0 20px rgba(0,255,200,0.2);}
-    .btn:disabled{opacity:0.4;cursor:not-allowed;}
-    .divider{display:flex;align-items:center;gap:12px;margin:24px 0;}
-    .divider-line{flex:1;height:1px;background:var(--border);}
-    .divider-text{font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted);letter-spacing:2px;white-space:nowrap;}
-    .btn-google{width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--border);color:var(--text);font-family:'Rajdhani',sans-serif;font-size:0.9rem;font-weight:600;letter-spacing:1px;padding:11px 16px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;transition:all 0.2s;}
-    .btn-google:hover{border-color:rgba(0,255,200,0.4);background:rgba(0,255,200,0.05);}
-    .footer-link{text-align:center;margin-top:24px;font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:1px;}
-    .footer-link a{color:var(--cyan);text-decoration:none;}
-    .msg{font-family:'Share Tech Mono',monospace;font-size:0.7rem;letter-spacing:1px;margin-top:-12px;margin-bottom:16px;display:none;}
-    .msg.error{color:var(--red);}
-    .msg.success{color:var(--cyan);}
-    .hint-box{font-family:'Share Tech Mono',monospace;font-size:0.62rem;color:var(--muted);text-align:center;margin-bottom:16px;line-height:1.8;padding:12px;border:1px solid var(--border);background:rgba(0,0,0,0.2);}
-    .hint-box strong{color:var(--cyan);}
-    .back-btn{background:none;border:none;color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:0.62rem;cursor:pointer;text-decoration:underline;margin-top:10px;display:block;width:100%;text-align:center;}
-    .back-btn:hover{color:var(--cyan);}
-    .qr-wrapper{text-align:center;margin:12px 0;}
-    .qr-wrapper img{border:2px solid var(--cyan);padding:8px;background:#fff;}
-    .secret-box{font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--muted);word-break:break-all;padding:10px;border:1px solid var(--border);background:rgba(0,0,0,0.3);margin-bottom:16px;text-align:center;cursor:pointer;}
-    .secret-box span{color:var(--cyan);}
-    .mandatory-badge{display:inline-block;background:rgba(255,45,107,0.1);border:1px solid var(--red);color:var(--red);font-family:'Share Tech Mono',monospace;font-size:0.55rem;letter-spacing:2px;padding:3px 8px;margin-bottom:14px;}
-    html[data-theme="light"]{--bg:#f0f4f2;--panel:#ffffff;--border:#c8ddd6;--cyan:#007a5e;--red:#d4003a;--muted:#7aaa96;--text:#2a5a48;}
-    .theme-btn{position:fixed;top:16px;right:16px;z-index:999;background:transparent;border:1px solid var(--border);color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:1px;padding:6px 12px;cursor:pointer;transition:all 0.2s;}
-    .theme-btn:hover{border-color:var(--cyan);color:var(--cyan);}
-  </style>
-</head>
-<body>
+// Railway: resolve modules from root node_modules
+const Module = require('module');
+Module.globalPaths.push(require('path').join(__dirname, '..', 'node_modules'));
 
-<div id="g_id_onload"
-  data-client_id="141579954551-r6q36pitk0e2ob17632bggvumtebhv02.apps.googleusercontent.com"
-  data-callback="handleGoogleCredential"
-  data-auto_prompt="false">
-</div>
+const express        = require("express");
+const cors           = require("cors");
+const multer         = require("multer");
+const mongoose       = require("mongoose");
+const fs             = require("fs");
+const csv            = require("csv-parser");
+const { execSync }   = require("child_process");
+const bcrypt         = require("bcryptjs");
+const path           = require("path");
+const jwt            = require("jsonwebtoken");
+const nodemailer     = require("nodemailer");
+const mongoSanitize  = require("express-mongo-sanitize");
+const { OAuth2Client } = require("google-auth-library");
+const speakeasy      = require("speakeasy");
+const QRCode         = require("qrcode");
 
-<div class="login-box">
-  <div class="logo">FRAUDSYS</div>
-  <div class="logo-sub">// THREAT INTELLIGENCE PLATFORM</div>
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-  <div class="step-indicator">
-    <span class="step active" id="badge1">STEP 1: CREDENTIALS</span>
-    <span style="color:var(--border)">→</span>
-    <span class="step" id="badge2">STEP 2: AUTHENTICATOR</span>
-  </div>
+/* ================= SECURITY MIDDLEWARE ================= */
+// Sanitize MongoDB queries — prevents NoSQL injection ($where, $gt attacks)
+app.use(mongoSanitize());
+// Strip dangerous characters from req.body strings (XSS prevention)
+app.use((req, res, next) => {
+  const sanitizeStr = (str) => typeof str === "string"
+    ? str.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+         .replace(/<[^>]+>/g, "")
+         .replace(/[<>'"]/g, c => ({ "<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;" }[c]))
+    : str;
+  const sanitizeObj = (obj) => {
+    if (typeof obj !== "object" || !obj) return obj;
+    Object.keys(obj).forEach(k => {
+      if (typeof obj[k] === "string") obj[k] = sanitizeStr(obj[k]);
+      else if (typeof obj[k] === "object") sanitizeObj(obj[k]);
+    });
+    return obj;
+  };
+  if (req.body) sanitizeObj(req.body);
+  next();
+});
 
-  <!-- STEP 1: Email + Password -->
-  <div id="step1">
-    <label>EMAIL ADDRESS</label>
-    <input type="email" id="email" placeholder="operative@fraudsys.io" />
-    <label>ACCESS CODE</label>
-    <input type="password" id="password" placeholder="••••••••••••"
-      onkeydown="if(event.key==='Enter') login()" />
-    <div id="msg1" class="msg error"></div>
-    <button class="btn" id="loginBtn" onclick="login()">⬡ AUTHENTICATE</button>
-    <div class="divider">
-      <div class="divider-line"></div>
-      <div class="divider-text">OR CONTINUE WITH</div>
-      <div class="divider-line"></div>
-    </div>
-    <button class="btn-google" onclick="google.accounts.id.prompt()">
-      <svg width="18" height="18" viewBox="0 0 24 24">
-        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-      </svg>
-      SIGN IN WITH GOOGLE
-    </button>
-    <div class="footer-link">NO ACCOUNT? <a href="register.html">REQUEST ACCESS</a></div>
-  </div>
+/* ================= JWT CONFIG ================= */
+const JWT_SECRET  = process.env.JWT_SECRET  || "fraudsys-super-secret-jwt-key-2024";
+const JWT_EXPIRY  = process.env.JWT_EXPIRY  || "8h"; // token expires in 8 hours
 
-  <!-- STEP 2a: TOTP login (already set up) -->
-  <div id="step2totp" style="display:none">
-    <div class="hint-box">
-      Open <strong>Google Authenticator</strong> and enter<br>
-      the 6-digit code for<br>
-      <strong id="totpLoginEmail"></strong>
-    </div>
-    <label>AUTHENTICATOR CODE</label>
-    <input type="text" id="totpLoginInput" class="otp-input" placeholder="000000"
-      maxlength="6" oninput="this.value=this.value.replace(/[^0-9]/g,'')"
-      onkeydown="if(event.key==='Enter') verifyTOTPLogin()" />
-    <div id="msgTOTPLogin" class="msg error"></div>
-    <button class="btn" id="totpLoginBtn" onclick="verifyTOTPLogin()">⬡ VERIFY &amp; ENTER</button>
-    <button class="back-btn" onclick="goBack()">← Back</button>
-  </div>
+function generateToken(user) {
+  return jwt.sign(
+    { id: user._id, email: user.email, role: user.role },
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRY }
+  );
+}
 
-  <!-- STEP 2b: First login — mandatory TOTP setup -->
-  <div id="step2setup" style="display:none">
-    <div class="mandatory-badge">⚠ MANDATORY — REQUIRED TO ACCESS SYSTEM</div>
-    <div class="hint-box">
-      All accounts must have <strong>Google Authenticator</strong> enabled.<br>
-      Complete setup below to access the dashboard.
-    </div>
-    <div id="setupLoading" style="text-align:center;padding:16px;font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--muted)">
-      // GENERATING QR CODE...
-    </div>
-    <div id="setupQR" style="display:none">
-      <div style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--muted);margin-bottom:10px;line-height:1.9">
-        1. Install <strong style="color:var(--cyan)">Google Authenticator</strong> on your phone<br>
-        2. Tap <strong style="color:var(--cyan)">+</strong> → <strong style="color:var(--cyan)">Scan a QR code</strong><br>
-        3. Enter the 6-digit code shown in the app
-      </div>
-      <div class="qr-wrapper">
-        <img id="setupQRImg" src="" width="180" height="180" />
-      </div>
-      <div class="secret-box" onclick="copySecret()" title="Click to copy">
-        Manual key: <span id="setupSecret"></span><br>
-        <span style="font-size:0.5rem;opacity:0.6">click to copy</span>
-      </div>
-      <label>ENTER 6-DIGIT CODE TO CONFIRM</label>
-      <input type="text" id="setupTOTPInput" class="otp-input" placeholder="000000"
-        maxlength="6" oninput="this.value=this.value.replace(/[^0-9]/g,'')"
-        onkeydown="if(event.key==='Enter') confirmSetup()" />
-      <div id="msgSetup" class="msg error"></div>
-      <button class="btn" id="setupConfirmBtn" onclick="confirmSetup()">✓ ACTIVATE &amp; ENTER DASHBOARD</button>
-    </div>
-  </div>
-
-</div>
-
-<button class="theme-btn" onclick="toggleTheme()" id="themeBtnLogin">☀ LIGHT</button>
-
-<script>
-  let pendingEmail = "";
-  let pendingToken = "";
-
-  function show(id) { document.getElementById(id).style.display = 'block'; }
-  function hide(id) { document.getElementById(id).style.display = 'none'; }
-  function markActive(id) { document.getElementById(id).className = 'step active'; }
-  function markDone(id)   { document.getElementById(id).className = 'step done'; }
-  function showMsg(id, txt) {
-    const el = document.getElementById(id);
-    el.textContent = txt; el.style.display = 'block'; el.className = 'msg error';
-  }
-
-  // STEP 1 — password
-  async function login() {
-    const email    = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
-    const btn      = document.getElementById("loginBtn");
-    if (!email || !password) { showMsg("msg1", "Fill in all fields ❌"); return; }
-    btn.disabled = true; btn.textContent = "// AUTHENTICATING...";
-    try {
-      const res  = await fetch("/login", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ email, password }) });
-      const data = await res.json();
-      if (res.ok && data.requiresTOTP) {
-        pendingEmail = email;
-        showTOTPLogin(email);
-      } else if (res.ok && data.requiresTOTPSetup) {
-        pendingEmail = data.email;
-        pendingToken = data.token;
-        localStorage.setItem('_pendingRole', data.role);
-        showTOTPSetup();
-      } else {
-        showMsg("msg1", data.error || "Login failed ❌");
-        btn.disabled = false; btn.textContent = "⬡ AUTHENTICATE";
-      }
-    } catch(e) {
-      showMsg("msg1", "Server error ❌");
-      btn.disabled = false; btn.textContent = "⬡ AUTHENTICATE";
+function verifyToken(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1]; // Bearer <token>
+  if (!token) return res.status(401).json({ error: "No token — access denied ❌" });
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch (err) {
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({ error: "Session expired — please login again ❌", expired: true });
     }
+    return res.status(403).json({ error: "Invalid token ❌" });
   }
+}
 
-  // STEP 2a — verify TOTP code
-  function showTOTPLogin(email) {
-    hide('step1'); show('step2totp');
-    markDone('badge1'); markActive('badge2');
-    document.getElementById("totpLoginEmail").textContent = email;
-    document.getElementById("totpLoginInput").focus();
+/* ================= EMAIL / OTP CONFIG ================= */
+// Uses Gmail. Set EMAIL_USER and EMAIL_PASS in .env
+// For testing: use a Gmail app password (not your real password)
+// If no email configured, OTP will be printed to console for testing
+const emailTransporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER || "",
+    pass: process.env.EMAIL_PASS || ""
   }
+});
 
-  async function verifyTOTPLogin() {
-    const token = document.getElementById("totpLoginInput").value.trim();
-    const btn   = document.getElementById("totpLoginBtn");
-    if (token.length !== 6) { showMsg("msgTOTPLogin", "Enter 6-digit code ❌"); return; }
-    btn.disabled = true; btn.textContent = "// VERIFYING...";
-    try {
-      const res  = await fetch("/verify-totp", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ email: pendingEmail, token }) });
-      const data = await res.json();
-      if (res.ok) {
-        finalizeLogin(data);
-      } else {
-        showMsg("msgTOTPLogin", data.error || "Invalid code ❌");
-        btn.disabled = false; btn.textContent = "⬡ VERIFY & ENTER";
-        document.getElementById("totpLoginInput").value = "";
-        document.getElementById("totpLoginInput").focus();
-      }
-    } catch(e) {
-      showMsg("msgTOTPLogin", "Server error ❌");
-      btn.disabled = false; btn.textContent = "⬡ VERIFY & ENTER";
+// In-memory OTP store: { email: { otp, expiresAt } }
+const otpStore = {};
+
+function generateOTP() {
+  return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
+}
+
+async function sendOTP(email, otp) {
+  const hasEmail = process.env.EMAIL_USER && process.env.EMAIL_PASS;
+  if (!hasEmail) {
+    // Development mode — print to console
+    console.log(`\n[OTP DEBUG] Code for ${email}: ${otp}\n`);
+    return;
+  }
+  await emailTransporter.sendMail({
+    from: `"FraudSys Security" <${process.env.EMAIL_USER}>`,
+    to: email,
+    subject: "FraudSys — Your 2FA Login Code",
+    html: `
+      <div style="font-family:monospace;background:#020d0a;color:#00ffc8;padding:30px;border:1px solid #0a2a1f">
+        <h2 style="letter-spacing:4px">FRAUDSYS // 2FA</h2>
+        <p style="color:#a0d4c0">Your one-time login code:</p>
+        <div style="font-size:2.5rem;font-weight:bold;letter-spacing:8px;color:#00ffc8;margin:20px 0">${otp}</div>
+        <p style="color:#2a5a48;font-size:12px">Expires in 5 minutes. Do not share this code.</p>
+      </div>`
+  });
+}
+
+/* ================= GOOGLE OAUTH ================= */
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ||
+  "141579954551-r6q36pitk0e2ob17632bggvumtebhv02.apps.googleusercontent.com";
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+
+/* ================= MONGODB ================= */
+const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/fraudDB";
+mongoose.connect(MONGO_URI)
+  .then(() => console.log("MongoDB connected ✅"))
+  .catch(err => console.log("Mongo Error ❌:", err));
+
+/* ================= MODELS ================= */
+
+const UserSchema = new mongoose.Schema({
+  email:        String,
+  password:     String,
+  role:         { type: String, default: "analyst" },
+  googleId:     String,
+  avatar:       String,
+  authProvider: { type: String, default: "local" },
+  failedLogins: { type: Number, default: 0 },
+  lockedUntil:  { type: Date,   default: null },
+  lastLogin:    { type: Date,   default: null },
+  twoFAEnabled:  { type: Boolean, default: true },
+  pendingOTP:    { type: String,  default: null },
+  otpExpiresAt:  { type: Date,    default: null },
+  totpSecret:    { type: String,  default: null },
+  totpEnabled:   { type: Boolean, default: false }
+});
+const User = mongoose.model("User", UserSchema);
+
+const ResultSchema = new mongoose.Schema({
+  amount: Number, claims: Number,
+  age: Number, policyDuration: Number,
+  incidentType: String, witnesses: Number,
+  policeReport: Boolean, premiumAmount: Number, vehicleAge: Number,
+  risk: String, confidence: Number, riskScore: Number,
+  probabilities: { Low: Number, Medium: Number, High: Number },
+  anomaly: { isAnomaly: Boolean, anomalyScore: Number },
+  flags: [String],
+  uploadId: { type: mongoose.Schema.Types.ObjectId, ref: "UploadHistory", default: null },
+  uploadedAt: { type: Date, default: Date.now }
+});
+const Result = mongoose.model("Result", ResultSchema);
+
+const UploadHistorySchema = new mongoose.Schema({
+  filename: String, totalRows: Number,
+  highRisk: Number, mediumRisk: Number, lowRisk: Number,
+  anomalies: Number,
+  uploadedBy: String,
+  uploadedAt: { type: Date, default: Date.now }
+});
+const UploadHistory = mongoose.model("UploadHistory", UploadHistorySchema);
+
+/* ================= SECURITY EVENT MODEL ================= */
+/*
+  severity:  CRITICAL | HIGH | MEDIUM | LOW | INFO
+  category:  AUTH | UPLOAD | ACCESS | SYSTEM | ANOMALY
+  status:    OPEN | INVESTIGATING | RESOLVED
+*/
+const SecurityEventSchema = new mongoose.Schema({
+  severity:    { type: String, enum: ["CRITICAL","HIGH","MEDIUM","LOW","INFO"], default: "INFO" },
+  category:    { type: String, enum: ["AUTH","UPLOAD","ACCESS","SYSTEM","ANOMALY"], default: "SYSTEM" },
+  title:       String,
+  description: String,
+  actor:       String,   // email or "anonymous"
+  ip:          String,
+  metadata:    mongoose.Schema.Types.Mixed,  // extra context
+  status:      { type: String, enum: ["OPEN","INVESTIGATING","RESOLVED"], default: "OPEN" },
+  timestamp:   { type: Date, default: Date.now }
+});
+const SecurityEvent = mongoose.model("SecurityEvent", SecurityEventSchema);
+
+/* ================= SOC LOGGER (helper) ================= */
+async function logEvent(severity, category, title, description, actor, req, metadata = {}) {
+  try {
+    const ip = req?.headers?.["x-forwarded-for"] || req?.socket?.remoteAddress || "unknown";
+    await SecurityEvent.create({ severity, category, title, description, actor, ip, metadata });
+    console.log(`[SOC][${severity}] ${title} — ${actor}`);
+  } catch (err) {
+    console.error("SOC log error:", err.message);
+  }
+}
+
+/* ================= BRUTE FORCE TRACKER (in-memory) ================= */
+// Tracks failed attempts per IP per minute
+const ipFailMap = {};
+function trackFailedIP(ip) {
+  const now = Date.now();
+  if (!ipFailMap[ip]) ipFailMap[ip] = [];
+  ipFailMap[ip] = ipFailMap[ip].filter(t => now - t < 60_000); // keep last 60s
+  ipFailMap[ip].push(now);
+  return ipFailMap[ip].length;
+}
+
+
+/* ================= TOTP 2FA ================= */
+
+// Setup TOTP — generate secret + QR code
+app.post("/setup-totp", async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const secret = speakeasy.generateSecret({
+      name: `FraudSys (${email})`,
+      issuer: "FraudSys"
+    });
+
+    // Save secret temporarily (not enabled until verified)
+    user.totpSecret  = secret.base32;
+    user.totpEnabled = false;
+    await user.save();
+
+    // Generate QR code as data URL
+    const qrDataURL = await QRCode.toDataURL(secret.otpauth_url);
+
+    res.json({
+      secret:    secret.base32,
+      qrCode:    qrDataURL,
+      otpauth:   secret.otpauth_url
+    });
+  } catch (err) {
+    console.error("TOTP setup error:", err);
+    res.status(500).json({ error: "TOTP setup failed" });
+  }
+});
+
+// Verify TOTP token and enable it
+app.post("/enable-totp", async (req, res) => {
+  try {
+    const { email, token } = req.body;
+    const user = await User.findOne({ email });
+    if (!user || !user.totpSecret) return res.status(400).json({ error: "TOTP not set up" });
+
+    const valid = speakeasy.totp.verify({
+      secret:   user.totpSecret,
+      encoding: "base32",
+      token:    token.replace(/\s/g, ""),
+      window:   1
+    });
+
+    if (!valid) return res.status(400).json({ error: "Invalid code — try again ❌" });
+
+    user.totpEnabled = true;
+    await user.save();
+    await logEvent("INFO", "AUTH", "TOTP 2FA enabled", `${email} enabled Google Authenticator`, email, req);
+    res.json({ message: "Google Authenticator enabled ✅" });
+  } catch (err) {
+    res.status(500).json({ error: "Verification failed" });
+  }
+});
+
+// Verify TOTP during login
+app.post("/verify-totp", async (req, res) => {
+  try {
+    const { email, token } = req.body;
+    const user = await User.findOne({ email });
+    if (!user || !user.totpSecret || !user.totpEnabled)
+      return res.status(400).json({ error: "TOTP not enabled for this account" });
+
+    const valid = speakeasy.totp.verify({
+      secret:   user.totpSecret,
+      encoding: "base32",
+      token:    token.replace(/\s/g, ""),
+      window:   1
+    });
+
+    if (!valid) {
+      await logEvent("MEDIUM", "AUTH", "TOTP verification failed", `Invalid TOTP for ${email}`, email, req);
+      return res.status(400).json({ error: "Invalid code ❌" });
     }
+
+    user.lastLogin    = new Date();
+    user.failedLogins = 0;
+    await user.save();
+
+    const jwtToken = generateToken(user);
+    await logEvent("INFO", "AUTH", "TOTP login successful", `${email} authenticated via Google Authenticator`, email, req, { role: user.role });
+    res.json({ message: "Login successful ✅", token: jwtToken, role: user.role, email: user.email, expiresIn: JWT_EXPIRY });
+  } catch (err) {
+    res.status(500).json({ error: "Verification failed" });
+  }
+});
+
+// Disable TOTP
+app.post("/disable-totp", async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    user.totpEnabled = false;
+    user.totpSecret  = null;
+    await user.save();
+    await logEvent("INFO", "AUTH", "TOTP disabled", `${email} disabled Google Authenticator`, email, req);
+    res.json({ message: "Google Authenticator disabled" });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to disable TOTP" });
+  }
+});
+
+// Check TOTP status
+app.get("/totp-status", async (req, res) => {
+  try {
+    const { email } = req.query;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json({ totpEnabled: user.totpEnabled || false });
+  } catch (err) {
+    res.status(500).json({ error: "Failed" });
+  }
+});
+
+/* ================= FILE UPLOAD ================= */
+const upload = multer({ dest: "uploads/" });
+
+/* ================= ROOT ================= */
+app.get("/", (req, res) => res.redirect("/register.html"));
+
+/* ================= SERVE FRONTEND ================= */
+app.use(express.static(path.resolve(__dirname, "../frontend")));
+
+/* ─────────────────────────────────────────────────────────────
+   AUTH ROUTES
+───────────────────────────────────────────────────────────── */
+
+/* REGISTER */
+app.post("/register", async (req, res) => {
+  const { email, password, role } = req.body;
+  try {
+    const existing = await User.findOne({ email });
+    if (existing) {
+      await logEvent("LOW", "AUTH", "Registration attempt — email exists",
+        `Someone tried to register with already-used email: ${email}`,
+        email, req, { email });
+      return res.status(400).json({ error: "User already exists ❌" });
+    }
+    const hashed = await bcrypt.hash(password, 10);
+    const user   = new User({ email, password: hashed, role, authProvider: "local" });
+    await user.save();
+    await logEvent("INFO", "AUTH", "New user registered",
+      `${email} registered as ${role}`, email, req, { role });
+    res.json({ message: "Registered successfully ✅" });
+  } catch (err) {
+    res.status(500).json({ error: "Registration failed ❌" });
+  }
+});
+
+/* LOGIN — Step 1: verify password, send OTP */
+app.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+  const ip = req?.socket?.remoteAddress || "unknown";
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      const attempts = trackFailedIP(ip);
+      await logEvent("MEDIUM", "AUTH", "Login failed — unknown user",
+        `Login attempt for non-existent account: ${email}`,
+        email || "anonymous", req, { attempts_from_ip: attempts });
+      return res.status(401).json({ error: "Invalid credentials ❌" });
+    }
+
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      await logEvent("HIGH", "AUTH", "Login attempt on locked account",
+        `Locked account login attempt: ${email}`, email, req, { locked_until: user.lockedUntil });
+      return res.status(403).json({ error: "Account locked. Try again in 15 minutes ❌" });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      user.failedLogins = (user.failedLogins || 0) + 1;
+      const attempts = trackFailedIP(ip);
+      if (user.failedLogins >= 5) {
+        user.lockedUntil = new Date(Date.now() + 15 * 60_000);
+        await user.save();
+        await logEvent("CRITICAL", "AUTH", "Account locked — brute force detected",
+          `Account ${email} locked after ${user.failedLogins} failed attempts`,
+          email, req, { failed_attempts: user.failedLogins, ip_attempts: attempts });
+        return res.status(403).json({ error: "Account locked after too many failed attempts ❌" });
+      }
+      if (user.failedLogins >= 3) {
+        await logEvent("HIGH", "AUTH", "Multiple failed login attempts",
+          `${user.failedLogins} failed attempts for ${email}`, email, req, { failed_attempts: user.failedLogins });
+      } else {
+        await logEvent("MEDIUM", "AUTH", "Failed login — wrong password",
+          `Incorrect password for ${email}`, email, req, { failed_attempts: user.failedLogins });
+      }
+      await user.save();
+      return res.status(401).json({ error: "Invalid credentials ❌" });
+    }
+
+    // Always use TOTP — if not set up yet, signal frontend to force setup
+    if (user.totpEnabled && user.totpSecret) {
+      await logEvent("INFO", "AUTH", "TOTP required for login",
+        `Password verified for ${email}, TOTP required`, email, req);
+      return res.json({ requiresTOTP: true, email, message: "Enter your Google Authenticator code" });
+    }
+
+    // TOTP not set up yet — issue a temp token so frontend can call /setup-totp
+    // Do NOT send email OTP
+    const tempToken = generateToken(user);
+    await logEvent("INFO", "AUTH", "First login — TOTP setup required",
+      `Password verified for ${email}, redirecting to mandatory TOTP setup`, email, req);
+    return res.json({ requiresTOTPSetup: true, email, token: tempToken, role: user.role, message: "Setup Google Authenticator to continue" });
+
+    // Dead code below kept for reference only — email OTP no longer used
+    const otp = generateOTP();
+    user.pendingOTP   = await bcrypt.hash(otp, 8);
+    user.otpExpiresAt = new Date(Date.now() + 5 * 60_000);
+    user.failedLogins = 0;
+    user.lockedUntil  = null;
+    await user.save();
+
+    await sendOTP(email, otp);
+    await logEvent("INFO", "AUTH", "OTP sent for 2FA",
+      `Password verified for ${email}, OTP dispatched`, email, req);
+
+    // Return partial — frontend must now submit OTP
+    res.json({ requiresOTP: true, email, message: "OTP sent to your email ✅" });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ error: "Login error ❌" });
+  }
+});
+
+/* LOGIN — Step 2: verify OTP, issue JWT */
+app.post("/verify-otp", async (req, res) => {
+  const { email, otp } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user || !user.pendingOTP) {
+      return res.status(400).json({ error: "No OTP pending for this account ❌" });
+    }
+    if (!user.otpExpiresAt || user.otpExpiresAt < new Date()) {
+      user.pendingOTP = null;
+      await user.save();
+      await logEvent("MEDIUM", "AUTH", "OTP expired",
+        `Expired OTP used for ${email}`, email, req);
+      return res.status(400).json({ error: "OTP expired — please login again ❌" });
+    }
+    const otpMatch = await bcrypt.compare(otp, user.pendingOTP);
+    if (!otpMatch) {
+      await logEvent("HIGH", "AUTH", "Invalid OTP attempt",
+        `Wrong OTP entered for ${email}`, email, req);
+      return res.status(401).json({ error: "Invalid OTP ❌" });
+    }
+
+    // OTP correct — clear it, issue JWT
+    user.pendingOTP   = null;
+    user.otpExpiresAt = null;
+    user.lastLogin    = new Date();
+    await user.save();
+
+    const token = generateToken(user);
+    await logEvent("INFO", "AUTH", "2FA login successful",
+      `${email} completed 2FA and logged in as ${user.role}`, email, req, { role: user.role });
+
+    res.json({
+      message:  "Login successful ✅",
+      token,
+      role:     user.role,
+      email:    user.email,
+      avatar:   user.avatar || null,
+      expiresIn: JWT_EXPIRY
+    });
+  } catch (err) {
+    console.error("OTP verify error:", err);
+    res.status(500).json({ error: "OTP verification failed ❌" });
+  }
+});
+
+/* GOOGLE LOGIN */
+app.post("/auth/google", async (req, res) => {
+  const { credential } = req.body;
+  try {
+    const ticket  = await googleClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, name, picture } = payload;
+    const requestedRole = req.body.role || "analyst";
+
+    let user = await User.findOne({ $or: [{ googleId }, { email }] });
+    const isNew = !user;
+    if (!user) {
+      // Brand new user — use requested role (from register page dropdown)
+      user = new User({ email, googleId, avatar: picture, role: requestedRole, authProvider: "google" });
+    } else {
+      // Existing user — NEVER overwrite their role, just update Google info
+      user.googleId     = googleId;
+      user.avatar       = picture;
+      user.authProvider = "google";
+      user.lastLogin    = new Date();
+      // role stays as whatever was set at registration
+    }
+    await user.save();
+
+    await logEvent("INFO", "AUTH",
+      isNew ? "New Google user registered" : "Google login successful",
+      `${email} authenticated via Google as ${user.role}`,
+      email, req, { role: user.role, isNew, authProvider: "google" });
+
+    const token = generateToken(user);
+    res.json({ message: "Google login successful ✅", token, role: user.role, email: user.email, name, avatar: picture, expiresIn: JWT_EXPIRY });
+  } catch (err) {
+    console.error("Google Auth Error:", err.message);
+    await logEvent("HIGH", "AUTH", "Google auth failure",
+      `Google token verification failed: ${err.message}`, "anonymous", req);
+    res.status(401).json({ error: "Google authentication failed ❌" });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────
+   SECURITY EVENTS API
+───────────────────────────────────────────────────────────── */
+
+/* GET events (admin SOC feed) */
+app.get("/security-events", async (req, res) => {
+  try {
+    const { severity, category, status, limit = 100 } = req.query;
+    const filter = {};
+    if (severity) filter.severity = severity;
+    if (category) filter.category = category;
+    if (status)   filter.status   = status;
+    const events = await SecurityEvent.find(filter)
+      .sort({ timestamp: -1 })
+      .limit(parseInt(limit));
+    res.json(events);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch events ❌" });
+  }
+});
+
+/* GET security stats */
+app.get("/security-stats", async (req, res) => {
+  try {
+    const since24h = new Date(Date.now() - 24 * 60 * 60_000);
+    const [total, critical, high, open, last24h] = await Promise.all([
+      SecurityEvent.countDocuments(),
+      SecurityEvent.countDocuments({ severity: "CRITICAL" }),
+      SecurityEvent.countDocuments({ severity: "HIGH" }),
+      SecurityEvent.countDocuments({ status: "OPEN" }),
+      SecurityEvent.countDocuments({ timestamp: { $gte: since24h } })
+    ]);
+    // Category breakdown
+    const categories = await SecurityEvent.aggregate([
+      { $group: { _id: "$category", count: { $sum: 1 } } }
+    ]);
+    res.json({ total, critical, high, open, last24h, categories });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch stats ❌" });
+  }
+});
+
+/* UPDATE event status */
+app.patch("/security-events/:id", async (req, res) => {
+  try {
+    const { status } = req.body;
+    const event = await SecurityEvent.findByIdAndUpdate(
+      req.params.id, { status }, { new: true }
+    );
+    res.json(event);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update event ❌" });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────
+   DATA ROUTES
+───────────────────────────────────────────────────────────── */
+
+app.get("/users", async (req, res) => {
+  try {
+    const users = await User.find({}, "email role authProvider avatar lastLogin failedLogins lockedUntil");
+    res.json(users);
+  } catch (err) { res.status(500).json({ error: "Failed to fetch users ❌" }); }
+});
+
+/* UNLOCK ACCOUNT */
+app.post("/unlock-account", async (req, res) => {
+  const { email } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ error: "User not found ❌" });
+    user.failedLogins = 0;
+    user.lockedUntil  = null;
+    await user.save();
+    await logEvent("INFO", "AUTH", "Account manually unlocked",
+      `Admin unlocked account: ${email}`, "admin", req, { unlockedEmail: email });
+    res.json({ message: `Account ${email} unlocked ✅` });
+  } catch (err) {
+    console.error("Unlock error:", err.message);
+    res.status(500).json({ error: "Failed to unlock account ❌" });
+  }
+});
+
+app.get("/results", async (req, res) => {
+  try {
+    const uploadId = req.query.uploadId;
+    const query    = (uploadId && uploadId.match(/^[a-f\d]{24}$/i)) ? { uploadId } : {};
+    const limit    = parseInt(req.query.limit) || 1000;
+    const results  = await Result.find(query).sort({ uploadedAt: -1 }).limit(limit).lean();
+    res.json(results);
+  } catch (err) {
+    console.error("Results fetch error:", err.message);
+    res.status(500).json({ error: "Failed to fetch results ❌" });
+  }
+});
+
+app.get("/upload-history", async (req, res) => {
+  try {
+    const history = await UploadHistory.find().sort({ uploadedAt: -1 }).limit(20);
+    res.json(history);
+  } catch (err) { res.status(500).json({ error: "Failed to fetch upload history ❌" }); }
+});
+
+/* UPLOAD + ML (batch prediction — fast) */
+app.post("/upload", upload.single("file"), async (req, res) => {
+  if (!req.file) {
+    await logEvent("MEDIUM", "UPLOAD", "Upload attempt with no file",
+      "Upload endpoint called without a file", req.body.uploadedBy || "unknown", req);
+    return res.status(400).json({ error: "No file uploaded ❌" });
   }
 
-  // STEP 2b — mandatory first-time setup
-  function showTOTPSetup() {
-    hide('step1'); hide('step2totp'); show('step2setup');
-    markDone('badge1'); markActive('badge2');
-    document.getElementById('badge2').textContent = 'STEP 2: SETUP AUTHENTICATOR';
-    loadSetupQR();
-  }
+  const uploader = req.body.uploadedBy || "admin";
+  await logEvent("INFO", "UPLOAD", "CSV upload started",
+    `${uploader} started uploading ${req.file.originalname}`,
+    uploader, req, { filename: req.file.originalname, size: req.file.size });
 
-  async function loadSetupQR() {
-    try {
-      const res  = await fetch("/setup-totp", {
-        method: "POST",
-        headers: { "Content-Type":"application/json", "Authorization":"Bearer " + pendingToken },
-        body: JSON.stringify({ email: pendingEmail })
+  try {
+    const { predict } = require("./predict_batch.js");
+    const csvData  = fs.readFileSync(req.file.path, "utf8");
+    const csvLines = csvData.trim().split("\n");
+    const headers  = csvLines[0].toLowerCase().split(",").map(h => h.trim().replace(/[^a-z_]/g, ""));
+    const idx      = (name) => headers.indexOf(name);
+
+    if (idx("amount") === -1 || idx("claims") === -1) {
+      return res.status(400).json({ error: "CSV must have 'amount' and 'claims' columns ❌" });
+    }
+
+    const dataLines = csvLines.slice(1).filter(l => l.trim());
+    const CHUNK     = 2000; // process 2000 rows at a time to stay under memory limit
+
+    // Delete old results first to free memory
+    await Result.deleteMany({});
+
+    // Create upload history record first so we have the ID to tag results
+    const uploadRecord = await UploadHistory.create({
+      filename: req.file.originalname || req.file.filename,
+      totalRows: 0, highRisk: 0, mediumRisk: 0, lowRisk: 0,
+      anomalies: 0, uploadedBy: uploader
+    });
+    const currentUploadId = uploadRecord._id;
+
+    let high = 0, medium = 0, low = 0, anomalies = 0;
+    let summaryRows = []; // keep only first 500 for the response
+
+    for (let i = 0; i < dataLines.length; i += CHUNK) {
+      const chunk   = dataLines.slice(i, i + CHUNK);
+      const results = chunk.map(line => {
+        const cols = line.split(",");
+        const g    = (name) => cols[idx(name)] !== undefined ? cols[idx(name)].trim() : null;
+        const policeRaw = g("police_report");
+        const policeVal = policeRaw !== null
+          ? (policeRaw.toLowerCase() === "yes" || policeRaw === "1" || policeRaw.toLowerCase() === "true")
+          : true;
+        const p = predict({
+          amount:         parseFloat(g("amount"))          || 0,
+          claims:         parseFloat(g("claims"))          || 0,
+          age:            parseFloat(g("age"))             || 0,
+          policyDuration: parseFloat(g("policy_duration")) || 0,
+          incidentType:   g("incident_type")               || "unknown",
+          witnesses:      g("witnesses") !== null ? parseInt(g("witnesses")) : 1,
+          policeReport:   policeVal,
+          premiumAmount:  parseFloat(g("premium_amount"))  || 0,
+          vehicleAge:     parseFloat(g("vehicle_age"))     || 0,
+        });
+        return {
+          amount: p.amount, claims: p.claims, age: p.age,
+          policyDuration: p.policyDuration, incidentType: p.incidentType,
+          witnesses: p.witnesses, policeReport: p.policeReport,
+          premiumAmount: p.premiumAmount, vehicleAge: p.vehicleAge,
+          risk: p.risk, confidence: p.confidence, riskScore: p.risk_score,
+          probabilities: p.probabilities,
+          anomaly: { isAnomaly: p.anomaly.is_anomaly, anomalyScore: p.anomaly.anomaly_score },
+          flags: p.flags || [],
+          uploadId: currentUploadId
+        };
       });
-      const data = await res.json();
-      document.getElementById("setupQRImg").src = data.qrCode;
-      document.getElementById("setupSecret").textContent = data.secret;
-      hide('setupLoading'); show('setupQR');
-      document.getElementById("setupTOTPInput").focus();
-    } catch(e) {
-      document.getElementById("setupLoading").textContent = "// FAILED — REFRESH AND TRY AGAIN";
-    }
-  }
 
-  async function confirmSetup() {
-    const token = document.getElementById("setupTOTPInput").value.trim();
-    const btn   = document.getElementById("setupConfirmBtn");
-    if (token.length !== 6) { showMsg("msgSetup", "Enter 6-digit code ❌"); return; }
-    btn.disabled = true; btn.textContent = "// ACTIVATING...";
-    try {
-      const res  = await fetch("/enable-totp", {
-        method: "POST",
-        headers: { "Content-Type":"application/json", "Authorization":"Bearer " + pendingToken },
-        body: JSON.stringify({ email: pendingEmail, token })
+      // Tally stats
+      results.forEach(r => {
+        if (r.risk === "High")   high++;
+        else if (r.risk === "Medium") medium++;
+        else low++;
+        if (r.anomaly?.isAnomaly) anomalies++;
       });
-      const data = await res.json();
-      if (res.ok) {
-        // Re-fetch full login data using the temp token
-        finalizeLogin({ token: pendingToken, role: localStorage.getItem('_pendingRole'), email: pendingEmail, avatar: '', name: '' });
-      } else {
-        showMsg("msgSetup", data.error || "Invalid code — try again ❌");
-        btn.disabled = false; btn.textContent = "✓ ACTIVATE & ENTER DASHBOARD";
-        document.getElementById("setupTOTPInput").value = "";
-        document.getElementById("setupTOTPInput").focus();
+
+      // Save chunk to MongoDB
+      await Result.insertMany(results, { ordered: false });
+
+      // Keep first 500 rows for the dashboard response
+      if (summaryRows.length < 500) {
+        summaryRows = summaryRows.concat(results.slice(0, 500 - summaryRows.length));
       }
-    } catch(e) {
-      showMsg("msgSetup", "Server error ❌");
-      btn.disabled = false; btn.textContent = "✓ ACTIVATE & ENTER DASHBOARD";
     }
-  }
 
-  function copySecret() {
-    navigator.clipboard.writeText(document.getElementById("setupSecret").textContent)
-      .then(() => alert("Secret key copied ✅"));
-  }
+    const totalRows = high + medium + low;
 
-  // Google login — also enforce TOTP setup
-  async function handleGoogleCredential(response) {
-    try {
-      const res  = await fetch("/auth/google", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ credential: response.credential }) });
-      const data = await res.json();
-      if (res.ok) {
-        pendingEmail = data.email;
-        pendingToken = data.token;
-        localStorage.setItem('_pendingRole', data.role);
-        const sr = await fetch("/totp-status?email=" + encodeURIComponent(data.email));
-        const sd = await sr.json();
-        if (sd.totpEnabled) { finalizeLogin(data); } else { showTOTPSetup(); }
-      } else {
-        showMsg("msg1", data.error || "Google login failed ❌");
-      }
-    } catch(e) { showMsg("msg1", "Server error ❌"); }
-  }
+    // Update upload history record with final stats
+    await UploadHistory.findByIdAndUpdate(currentUploadId, {
+      totalRows: totalRows, highRisk: high, mediumRisk: medium,
+      lowRisk: low, anomalies
+    });
 
-  function finalizeLogin(data) {
-    localStorage.setItem("token",  data.token);
-    localStorage.setItem("role",   data.role || localStorage.getItem('_pendingRole'));
-    localStorage.setItem("email",  data.email);
-    localStorage.setItem("avatar", data.avatar || "");
-    localStorage.setItem("name",   data.name   || "");
-    window.location.href = "index.html";
-  }
+    const highRatioPct = totalRows ? (high / totalRows) * 100 : 0;
+    const isGenerated  = req.body.generated === 'true';
+    const genParams    = isGenerated ? (() => { try { return JSON.parse(req.body.genParams||'{}'); } catch(e){return{};} })() : null;
 
-  function goBack() {
-    hide('step2totp'); show('step1');
-    markActive('badge1');
-    document.getElementById('badge2').className = 'step';
-    document.getElementById('badge2').textContent = 'STEP 2: AUTHENTICATOR';
-  }
+    // SOC log — generated dataset gets special entry
+    if (isGenerated) {
+      const genSev = genParams.fraud >= 30 ? "HIGH" : "MEDIUM";
+      await logEvent(genSev, "UPLOAD",
+        `Synthetic dataset generated & uploaded`,
+        `${uploader} generated ${totalRows.toLocaleString()} rows — fraud rate: ${genParams.fraud}%, profile: ${genParams.profile}, edge cases: ${genParams.addEdge}, high-risk found: ${high} (${highRatioPct.toFixed(1)}%)`,
+        uploader, req, { generated: true, size: results.length, fraudRate: genParams.fraud, profile: genParams.profile, highRisk: high, anomalies });
+    } else if (highRatioPct >= 50) {
+      await logEvent("HIGH", "UPLOAD", "Suspicious upload — high fraud ratio",
+        `${uploader} uploaded ${req.file.originalname}: ${highRatioPct.toFixed(1)}% high-risk records (${high}/${results.length})`,
+        uploader, req, { filename: req.file.originalname, highRisk: high, total: results.length });
+    } else if (anomalies > 0) {
+      await logEvent("MEDIUM", "ANOMALY", "Anomalies detected in upload",
+        `${anomalies} anomalous records found in ${req.file.originalname}`,
+        uploader, req, { anomalies, filename: req.file.originalname });
+    } else {
+      await logEvent("INFO", "UPLOAD", "Upload completed successfully",
+        `${uploader} uploaded ${req.file.originalname}: ${totalRows} rows processed`,
+        uploader, req, { filename: req.file.originalname, high, medium, low });
+    }
 
-  // Theme
-  function toggleTheme() {
-    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
-    localStorage.setItem('theme', isDark ? 'light' : 'dark');
-    document.getElementById('themeBtnLogin').textContent = isDark ? '☾ DARK' : '☀ LIGHT';
+    try { fs.unlinkSync(req.file.path); } catch(e) {}
+    res.json(summaryRows);
+  } catch (err) {
+    console.error("ML Batch Error:", err.message);
+    await logEvent("HIGH", "UPLOAD", "ML batch processing failed",
+      `Error: ${err.message}`, uploader, req);
+    res.status(500).json({ error: "ML processing failed ❌: " + err.message });
   }
-  (function() {
-    const saved = localStorage.getItem('theme') || 'dark';
-    document.documentElement.setAttribute('data-theme', saved);
-    const btn = document.getElementById('themeBtnLogin');
-    if (btn) btn.textContent = saved === 'light' ? '☾ DARK' : '☀ LIGHT';
-  })();
-</script>
-</body>
-</html>
+});
+
+/* ================= START ================= */
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT} 🚀`));
