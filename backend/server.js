@@ -473,7 +473,8 @@ app.post("/unlock-account", async (req, res) => {
 app.get("/results", async (req, res) => {
   try {
     const results = await Result.find().sort({ uploadedAt: -1 });
-    res.json(results);
+    try { fs.unlinkSync(req.file.path); } catch(e) {}
+    res.json(summaryRows);
   } catch (err) { res.status(500).json({ error: "Failed to fetch results ❌" }); }
 });
 
@@ -498,27 +499,35 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     uploader, req, { filename: req.file.originalname, size: req.file.size });
 
   try {
-    // Pure JS batch prediction — no Python needed
     const { predict } = require("./predict_batch.js");
-    const csvData = fs.readFileSync(req.file.path, "utf8");
+    const csvData  = fs.readFileSync(req.file.path, "utf8");
     const csvLines = csvData.trim().split("\n");
     const headers  = csvLines[0].toLowerCase().split(",").map(h => h.trim().replace(/[^a-z_]/g, ""));
-    const idx = (name) => headers.indexOf(name);
+    const idx      = (name) => headers.indexOf(name);
 
     if (idx("amount") === -1 || idx("claims") === -1) {
       return res.status(400).json({ error: "CSV must have 'amount' and 'claims' columns ❌" });
     }
 
-    const predictions = csvLines.slice(1)
-      .filter(l => l.trim())
-      .map(line => {
+    const dataLines = csvLines.slice(1).filter(l => l.trim());
+    const CHUNK     = 2000; // process 2000 rows at a time to stay under memory limit
+
+    // Delete old results first to free memory
+    await Result.deleteMany({});
+
+    let high = 0, medium = 0, low = 0, anomalies = 0;
+    let summaryRows = []; // keep only first 500 for the response
+
+    for (let i = 0; i < dataLines.length; i += CHUNK) {
+      const chunk   = dataLines.slice(i, i + CHUNK);
+      const results = chunk.map(line => {
         const cols = line.split(",");
         const g    = (name) => cols[idx(name)] !== undefined ? cols[idx(name)].trim() : null;
         const policeRaw = g("police_report");
         const policeVal = policeRaw !== null
           ? (policeRaw.toLowerCase() === "yes" || policeRaw === "1" || policeRaw.toLowerCase() === "true")
           : true;
-        return predict({
+        const p = predict({
           amount:         parseFloat(g("amount"))          || 0,
           claims:         parseFloat(g("claims"))          || 0,
           age:            parseFloat(g("age"))             || 0,
@@ -529,42 +538,44 @@ app.post("/upload", upload.single("file"), async (req, res) => {
           premiumAmount:  parseFloat(g("premium_amount"))  || 0,
           vehicleAge:     parseFloat(g("vehicle_age"))     || 0,
         });
+        return {
+          amount: p.amount, claims: p.claims, age: p.age,
+          policyDuration: p.policyDuration, incidentType: p.incidentType,
+          witnesses: p.witnesses, policeReport: p.policeReport,
+          premiumAmount: p.premiumAmount, vehicleAge: p.vehicleAge,
+          risk: p.risk, confidence: p.confidence, riskScore: p.risk_score,
+          probabilities: p.probabilities,
+          anomaly: { isAnomaly: p.anomaly.is_anomaly, anomalyScore: p.anomaly.anomaly_score },
+          flags: p.flags || []
+        };
       });
 
-    const results = predictions.map(p => ({
-      amount:         p.amount,
-      claims:         p.claims,
-      age:            p.age,
-      policyDuration: p.policyDuration,
-      incidentType:   p.incidentType,
-      witnesses:      p.witnesses,
-      policeReport:   p.policeReport,
-      premiumAmount:  p.premiumAmount,
-      vehicleAge:     p.vehicleAge,
-      risk:           p.risk,
-      confidence:     p.confidence,
-      riskScore:      p.risk_score,
-      probabilities:  p.probabilities,
-      anomaly:        { isAnomaly: p.anomaly.is_anomaly, anomalyScore: p.anomaly.anomaly_score },
-      flags:          p.flags || []
-    }));
+      // Tally stats
+      results.forEach(r => {
+        if (r.risk === "High")   high++;
+        else if (r.risk === "Medium") medium++;
+        else low++;
+        if (r.anomaly?.isAnomaly) anomalies++;
+      });
 
+      // Save chunk to MongoDB
+      await Result.insertMany(results, { ordered: false });
 
-    await Result.deleteMany({});
-    await Result.insertMany(results);
+      // Keep first 500 rows for the dashboard response
+      if (summaryRows.length < 500) {
+        summaryRows = summaryRows.concat(results.slice(0, 500 - summaryRows.length));
+      }
+    }
 
-    const high      = results.filter(r => r.risk === "High").length;
-    const medium    = results.filter(r => r.risk === "Medium").length;
-    const low       = results.filter(r => r.risk === "Low").length;
-    const anomalies = results.filter(r => r.anomaly?.isAnomaly).length;
+    const totalRows = high + medium + low;
 
     await UploadHistory.create({
       filename: req.file.originalname || req.file.filename,
-      totalRows: results.length, highRisk: high, mediumRisk: medium, lowRisk: low,
+      totalRows: totalRows, highRisk: high, mediumRisk: medium, lowRisk: low,
       anomalies, uploadedBy: uploader
     });
 
-    const highRatioPct = results.length ? (high / results.length) * 100 : 0;
+    const highRatioPct = totalRows ? (high / totalRows) * 100 : 0;
     const isGenerated  = req.body.generated === 'true';
     const genParams    = isGenerated ? (() => { try { return JSON.parse(req.body.genParams||'{}'); } catch(e){return{};} })() : null;
 
@@ -573,7 +584,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       const genSev = genParams.fraud >= 30 ? "HIGH" : "MEDIUM";
       await logEvent(genSev, "UPLOAD",
         `Synthetic dataset generated & uploaded`,
-        `${uploader} generated ${results.length.toLocaleString()} rows — fraud rate: ${genParams.fraud}%, profile: ${genParams.profile}, edge cases: ${genParams.addEdge}, high-risk found: ${high} (${highRatioPct.toFixed(1)}%)`,
+        `${uploader} generated ${totalRows.toLocaleString()} rows — fraud rate: ${genParams.fraud}%, profile: ${genParams.profile}, edge cases: ${genParams.addEdge}, high-risk found: ${high} (${highRatioPct.toFixed(1)}%)`,
         uploader, req, { generated: true, size: results.length, fraudRate: genParams.fraud, profile: genParams.profile, highRisk: high, anomalies });
     } else if (highRatioPct >= 50) {
       await logEvent("HIGH", "UPLOAD", "Suspicious upload — high fraud ratio",
@@ -585,11 +596,12 @@ app.post("/upload", upload.single("file"), async (req, res) => {
         uploader, req, { anomalies, filename: req.file.originalname });
     } else {
       await logEvent("INFO", "UPLOAD", "Upload completed successfully",
-        `${uploader} uploaded ${req.file.originalname}: ${results.length} rows processed`,
+        `${uploader} uploaded ${req.file.originalname}: ${totalRows} rows processed`,
         uploader, req, { filename: req.file.originalname, high, medium, low });
     }
 
-    res.json(results);
+    try { fs.unlinkSync(req.file.path); } catch(e) {}
+    res.json(summaryRows);
   } catch (err) {
     console.error("ML Batch Error:", err.message);
     await logEvent("HIGH", "UPLOAD", "ML batch processing failed",
