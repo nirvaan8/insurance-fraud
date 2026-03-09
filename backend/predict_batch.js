@@ -64,7 +64,7 @@ function predict(params) {
   const {
     amount = 0, claims = 0, age = 0, policyDuration = 0,
     incidentType = 'unknown', witnesses = 1, policeReport = true,
-    premiumAmount = 0, vehicleAge = 0
+    premiumAmount = 0, vehicleAge = 0, location = ''
   } = params;
 
   const feat  = featureEngineer({ amount, claims, age, policyDuration,
@@ -115,6 +115,7 @@ function predict(params) {
     amount, claims, age, policyDuration,
     incidentType: normaliseIncident(incidentType),
     witnesses, policeReport, premiumAmount, vehicleAge,
+    location,
     risk, confidence,
     risk_score: parseFloat(score.toFixed(1)),
     probabilities: { Low: lowProb, Medium: medProb, High: highProb },
