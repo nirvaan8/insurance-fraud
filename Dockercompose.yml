@@ -1,0 +1,59 @@
+services:
+  # ── MongoDB (local dev only) ───────────────────────────────
+  mongo:
+    image: mongo:7-jammy
+    container_name: fraudsys-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: fraudDB
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FraudSys App ──────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fraudsys-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      MONGO_URI: mongodb://mongo:27017/fraudDB
+      JWT_SECRET: fraudsys-super-secret-dev-key-2024
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    volumes:
+      - uploads_data:/app/backend/uploads
+
+  # ── Jenkins CI/CD ─────────────────────────────────────────
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
+    container_name: fraudsys-jenkins
+    restart: unless-stopped
+    ports:
+      - "8080:8080"    # Jenkins UI
+      - "50000:50000"  # Agent port
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      JAVA_OPTS: "-Djenkins.install.runSetupWizard=false"
+
+volumes:
+  mongo_data:
+  uploads_data:
+  jenkins_home:
