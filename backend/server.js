@@ -16,11 +16,32 @@ const nodemailer     = require("nodemailer");
 const mongoSanitize  = require("express-mongo-sanitize");
 const { OAuth2Client } = require("google-auth-library");
 const speakeasy      = require("speakeasy");
+const rateLimit      = require("express-rate-limit");
 const QRCode         = require("qrcode");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+/* ================= RATE LIMITING ================= */
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200,
+  message: { error: "Too many requests — slow down ❌" },
+  standardHeaders: true, legacyHeaders: false
+});
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20, // stricter for auth endpoints
+  message: { error: "Too many login attempts — try again later ❌" }
+});
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5, // max 5 uploads per minute
+  message: { error: "Upload rate limit exceeded ❌" }
+});
+
+app.use(globalLimiter);
 
 /* ================= SECURITY MIDDLEWARE ================= */
 // Sanitize MongoDB queries — prevents NoSQL injection ($where, $gt attacks)
@@ -56,12 +77,23 @@ function generateToken(user) {
   );
 }
 
-function verifyToken(req, res, next) {
+async function verifyToken(req, res, next) {
   const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1]; // Bearer <token>
+  const token = authHeader && authHeader.split(" ")[1];
   if (!token) return res.status(401).json({ error: "No token — access denied ❌" });
+
+  // Check IP blacklist
+  const ip = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown";
+  const blocked = await IPBlacklist.findOne({ ip });
+  if (blocked) return res.status(403).json({ error: "Access denied — IP blocked ❌" });
+
+  // Check token revocation
+  const revoked = await RevokedToken.findOne({ token });
+  if (revoked) return res.status(401).json({ error: "Session revoked — please login again ❌", expired: true });
+
   try {
     req.user = jwt.verify(token, JWT_SECRET);
+    req._token = token; // store for logout
     next();
   } catch (err) {
     if (err.name === "TokenExpiredError") {
@@ -185,6 +217,44 @@ const SecurityEventSchema = new mongoose.Schema({
 });
 const SecurityEvent = mongoose.model("SecurityEvent", SecurityEventSchema);
 
+
+/* ================= IP BLACKLIST MODEL ================= */
+const IPBlacklistSchema = new mongoose.Schema({
+  ip:        { type: String, unique: true },
+  reason:    { type: String, default: "" },
+  blockedBy: { type: String, default: "system" },
+  blockedAt: { type: Date, default: Date.now }
+});
+const IPBlacklist = mongoose.model("IPBlacklist", IPBlacklistSchema);
+
+/* ================= TOKEN BLACKLIST (revoked JWTs) ================= */
+const RevokedTokenSchema = new mongoose.Schema({
+  token:     { type: String, unique: true },
+  email:     String,
+  revokedAt: { type: Date, default: Date.now, expires: 86400 } // auto-delete after 24h
+});
+const RevokedToken = mongoose.model("RevokedToken", RevokedTokenSchema);
+
+/* ================= AUDIT TRAIL MODEL ================= */
+const AuditSchema = new mongoose.Schema({
+  actor:    String,           // who did it
+  ip:       String,
+  action:   String,           // LOGIN, LOGOUT, UPLOAD, DELETE, ROLE_CHANGE, IP_BLOCK, SOC_TRIAGE etc
+  target:   String,           // what was affected
+  before:   mongoose.Schema.Types.Mixed,
+  after:    mongoose.Schema.Types.Mixed,
+  timestamp:{ type: Date, default: Date.now }
+});
+AuditSchema.index({ timestamp: -1 });
+const Audit = mongoose.model("Audit", AuditSchema);
+
+async function auditLog(actor, req, action, target, before = null, after = null) {
+  try {
+    const ip = req?.headers?.["x-forwarded-for"] || req?.socket?.remoteAddress || "unknown";
+    await Audit.create({ actor, ip, action, target, before, after });
+  } catch(e) { console.error("Audit log error:", e.message); }
+}
+
 /* ================= SOC LOGGER (helper) ================= */
 async function logEvent(severity, category, title, description, actor, req, metadata = {}) {
   try {
@@ -267,7 +337,7 @@ app.post("/enable-totp", async (req, res) => {
 });
 
 // Verify TOTP during login
-app.post("/verify-totp", async (req, res) => {
+app.post("/verify-totp", authLimiter, async (req, res) => {
   try {
     const { email, token } = req.body;
     const user = await User.findOne({ email });
@@ -292,6 +362,7 @@ app.post("/verify-totp", async (req, res) => {
 
     const jwtToken = generateToken(user);
     await logEvent("INFO", "AUTH", "TOTP login successful", `${email} authenticated via Google Authenticator`, email, req, { role: user.role });
+    await auditLog(email, req, "LOGIN", email, null, { method: "TOTP", role: user.role });
     res.json({ message: "Login successful ✅", token: jwtToken, role: user.role, email: user.email, expiresIn: JWT_EXPIRY });
   } catch (err) {
     res.status(500).json({ error: "Verification failed" });
@@ -362,7 +433,7 @@ app.post("/register", async (req, res) => {
 });
 
 /* LOGIN — Step 1: verify password, send OTP */
-app.post("/login", async (req, res) => {
+app.post("/login", authLimiter, async (req, res) => {
   const { email, password } = req.body;
   const ip = req?.socket?.remoteAddress || "unknown";
   try {
@@ -426,7 +497,7 @@ app.post("/login", async (req, res) => {
 });
 
 /* LOGIN — Step 2: verify OTP, issue JWT */
-app.post("/verify-otp", async (req, res) => {
+app.post("/verify-otp", authLimiter, async (req, res) => {
   const { email, otp } = req.body;
   try {
     const user = await User.findOne({ email });
@@ -594,6 +665,55 @@ app.post("/unlock-account", async (req, res) => {
   }
 });
 
+
+/* ================= IP BLACKLIST ================= */
+app.get("/ip-blacklist", verifyToken, async (req, res) => {
+  try {
+    const list = await IPBlacklist.find().sort({ blockedAt: -1 });
+    res.json(list);
+  } catch(e) { res.status(500).json({ error: "Failed" }); }
+});
+
+app.post("/ip-blacklist", verifyToken, async (req, res) => {
+  try {
+    const { ip, reason } = req.body;
+    if (!ip) return res.status(400).json({ error: "IP required" });
+    await IPBlacklist.findOneAndUpdate({ ip }, { ip, reason, blockedBy: req.user.email, blockedAt: new Date() }, { upsert: true });
+    await logEvent("HIGH", "ACCESS", "IP blocked", `${req.user.email} blocked IP: ${ip} — ${reason}`, req.user.email, req);
+    await auditLog(req.user.email, req, "IP_BLOCK", ip, null, { reason });
+    res.json({ message: "IP blocked ✅" });
+  } catch(e) { res.status(500).json({ error: "Failed to block IP" }); }
+});
+
+app.delete("/ip-blacklist/:ip", verifyToken, async (req, res) => {
+  try {
+    const ip = decodeURIComponent(req.params.ip);
+    await IPBlacklist.deleteOne({ ip });
+    await logEvent("MEDIUM", "ACCESS", "IP unblocked", `${req.user.email} unblocked IP: ${ip}`, req.user.email, req);
+    await auditLog(req.user.email, req, "IP_UNBLOCK", ip);
+    res.json({ message: "IP unblocked ✅" });
+  } catch(e) { res.status(500).json({ error: "Failed" }); }
+});
+
+/* ================= AUDIT TRAIL ================= */
+app.get("/audit-trail", verifyToken, async (req, res) => {
+  try {
+    const limit  = parseInt(req.query.limit) || 100;
+    const action = req.query.action || null;
+    const query  = action ? { action } : {};
+    const logs   = await Audit.find(query).sort({ timestamp: -1 }).limit(limit);
+    res.json(logs);
+  } catch(e) { res.status(500).json({ error: "Failed" }); }
+});
+
+/* ================= REVOKED TOKENS (admin view) ================= */
+app.get("/revoked-tokens", verifyToken, async (req, res) => {
+  try {
+    const tokens = await RevokedToken.find().sort({ revokedAt: -1 }).limit(50);
+    res.json(tokens);
+  } catch(e) { res.status(500).json({ error: "Failed" }); }
+});
+
 /* GEO STATS — fraud counts aggregated by location */
 app.get("/geo-stats", async (req, res) => {
   try {
@@ -639,7 +759,7 @@ app.get("/upload-history", async (req, res) => {
 });
 
 /* UPLOAD + ML (batch prediction — fast) */
-app.post("/upload", upload.single("file"), async (req, res) => {
+app.post("/upload", uploadLimiter, upload.single("file"), async (req, res) => {
   if (!req.file) {
     await logEvent("MEDIUM", "UPLOAD", "Upload attempt with no file",
       "Upload endpoint called without a file", req.body.uploadedBy || "unknown", req);
@@ -749,11 +869,11 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       await logEvent(genSev, "UPLOAD",
         `Synthetic dataset generated & uploaded`,
         `${uploader} generated ${totalRows.toLocaleString()} rows — fraud rate: ${genParams.fraud}%, profile: ${genParams.profile}, edge cases: ${genParams.addEdge}, high-risk found: ${high} (${highRatioPct.toFixed(1)}%)`,
-        uploader, req, { generated: true, size: results.length, fraudRate: genParams.fraud, profile: genParams.profile, highRisk: high, anomalies });
+        uploader, req, { generated: true, size: totalRows, fraudRate: genParams.fraud, profile: genParams.profile, highRisk: high, anomalies });
     } else if (highRatioPct >= 50) {
       await logEvent("HIGH", "UPLOAD", "Suspicious upload — high fraud ratio",
-        `${uploader} uploaded ${req.file.originalname}: ${highRatioPct.toFixed(1)}% high-risk records (${high}/${results.length})`,
-        uploader, req, { filename: req.file.originalname, highRisk: high, total: results.length });
+        `${uploader} uploaded ${req.file.originalname}: ${highRatioPct.toFixed(1)}% high-risk records (${high}/${totalRows})`,
+        uploader, req, { filename: req.file.originalname, highRisk: high, total: totalRows });
     } else if (anomalies > 0) {
       await logEvent("MEDIUM", "ANOMALY", "Anomalies detected in upload",
         `${anomalies} anomalous records found in ${req.file.originalname}`,
