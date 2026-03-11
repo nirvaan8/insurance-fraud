@@ -1,3 +1,16 @@
+/* ================= HEALTH CHECK ================= */
+app.get("/health", (req, res) => {
+  const dbState = mongoose.connection.readyState;
+  const dbStatus = { 0:"disconnected", 1:"connected", 2:"connecting", 3:"disconnecting" }[dbState] || "unknown";
+  res.status(dbState === 1 ? 200 : 503).json({
+    status: dbState === 1 ? "ok" : "degraded",
+    db: dbStatus,
+    uptime: Math.floor(process.uptime()) + "s",
+    memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + "MB",
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Railway: resolve modules from root node_modules
 const Module = require('module');
 Module.globalPaths.push(require('path').join(__dirname, '..', 'node_modules'));
