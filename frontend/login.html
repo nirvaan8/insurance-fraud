@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <script>
+  // If already logged in, go straight to dashboard
+  (function() {
+    if (localStorage.getItem("token")) window.location.replace("index.html");
+  })();
     (function() {
       var t = localStorage.getItem('theme') || 'dark';
       document.documentElement.setAttribute('data-theme', t);
