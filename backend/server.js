@@ -20,6 +20,7 @@ const rateLimit      = require("express-rate-limit");
 const QRCode         = require("qrcode");
 
 const app = express();
+app.set("trust proxy", 1); // Trust Railway/Docker/Nginx reverse proxy
 app.use(cors());
 app.use(express.json());
 
