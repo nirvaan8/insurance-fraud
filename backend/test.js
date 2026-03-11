@@ -4,7 +4,7 @@
  * Run: node tests/test.js
  */
 
-const { predict } = require('../predict_batch');
+const { predict } = require('./predict_batch');
 
 let passed = 0;
 let failed = 0;
