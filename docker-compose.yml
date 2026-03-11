@@ -1,5 +1,5 @@
 services:
-  # ── MongoDB (local dev only) ───────────────────────────────
+  # ── MongoDB ────────────────────────────────────────────────
   mongo:
     image: mongo:7-jammy
     container_name: fraudsys-mongo
@@ -16,7 +16,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── FraudSys App ──────────────────────────────────────────
+  # ── FraudSys App ───────────────────────────────────────────
   app:
     build:
       context: .
@@ -37,7 +37,7 @@ services:
     volumes:
       - uploads_data:/app/backend/uploads
 
-  # ── Jenkins CI/CD ─────────────────────────────────────────
+  # ── Jenkins CI/CD ──────────────────────────────────────────
   jenkins:
     build:
       context: .
@@ -45,13 +45,15 @@ services:
     container_name: fraudsys-jenkins
     restart: unless-stopped
     ports:
-      - "8080:8080"    # Jenkins UI
-      - "50000:50000"  # Agent port
+      - "8090:8080"
+      - "50001:50000"
     volumes:
       - jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       JAVA_OPTS: "-Djenkins.install.runSetupWizard=false"
+    # Fix docker socket permissions
+    user: root
 
 volumes:
   mongo_data:
