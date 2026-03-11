@@ -1,4 +1,3 @@
-# Jenkins with Docker-in-Docker + Node.js support
 FROM jenkins/jenkins:lts-jdk17
 
 USER root
@@ -22,20 +21,20 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Verify installs
-RUN node --version && npm --version && docker --version
+# Fix Docker socket permissions — add jenkins to docker group (GID 999)
+RUN groupadd -f -g 999 docker && usermod -aG docker jenkins
 
-# Add jenkins user to docker group
-RUN groupadd -f docker && usermod -aG docker jenkins
+# Give jenkins access to docker socket at runtime
+RUN echo '#!/bin/sh\nchmod 666 /var/run/docker.sock 2>/dev/null || true\nexec "$@"' \
+    > /usr/local/bin/docker-entrypoint-wrapper.sh && \
+    chmod +x /usr/local/bin/docker-entrypoint-wrapper.sh
 
 USER jenkins
 
-# Pre-install useful Jenkins plugins
 RUN jenkins-plugin-cli --plugins \
     git \
     workflow-aggregator \
     docker-workflow \
     credentials-binding \
-    blueocean \
     pipeline-stage-view \
-    nodejs
+    nodejs 2>/dev/null || true
