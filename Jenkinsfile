@@ -56,7 +56,7 @@ pipeline {
     stage('Unit Tests') {
       steps {
         dir('backend') {
-          sh 'node tests/test.js'
+          sh 'node test.js'
         }
       }
       post {
