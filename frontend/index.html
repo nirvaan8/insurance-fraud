@@ -513,6 +513,18 @@
             </div>
           </div>
 
+          <!-- Location toggle -->
+          <div style="background:rgba(0,0,0,0.2);border:1px solid var(--border);padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--accent);letter-spacing:2px">INCLUDE LOCATION COLUMN</div>
+              <div style="font-family:Rajdhani,sans-serif;font-size:0.75rem;color:var(--muted);margin-top:2px">Adds Indian city data — required for Geo Heatmap</div>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" id="genIncludeLocation" checked style="accent-color:var(--accent);width:16px;height:16px">
+              <span style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted)">ON</span>
+            </label>
+          </div>
+
           <!-- Preview -->
           <div id="genPreview" style="padding:12px 16px;background:rgba(0,255,200,0.04);
             border:1px solid rgba(0,255,200,0.15);margin-bottom:16px;
@@ -556,6 +568,24 @@
     <!-- ══════ ADMIN: SOC EVENTS ══════ -->
     <div id="adminSOC" style="display:none">
 
+      <!-- SOC Sub-tabs -->
+      <div style="display:flex;gap:0;margin-bottom:16px;border:1px solid var(--border);width:fit-content">
+        <button id="socTab1" onclick="showSOCTab('events')"
+          style="background:rgba(0,255,200,0.08);border:none;border-right:1px solid var(--border);
+          color:var(--accent);font-family:'Share Tech Mono',monospace;font-size:0.6rem;
+          letter-spacing:2px;padding:8px 16px;cursor:pointer">⚠ SOC EVENTS</button>
+        <button id="socTab2" onclick="showSOCTab('audit')"
+          style="background:transparent;border:none;border-right:1px solid var(--border);
+          color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:0.6rem;
+          letter-spacing:2px;padding:8px 16px;cursor:pointer">◎ AUDIT TRAIL</button>
+        <button id="socTab3" onclick="showSOCTab('ipblock')"
+          style="background:transparent;border:none;
+          color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:0.6rem;
+          letter-spacing:2px;padding:8px 16px;cursor:pointer">✕ IP BLACKLIST</button>
+      </div>
+
+      <!-- SOC Events panel -->
+      <div id="socPanelEvents">
       <!-- Stats row -->
       <div class="admin-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
         <div class="admin-card red">
@@ -618,6 +648,78 @@
           <div class="empty-state">// LOADING EVENTS...</div>
         </div>
       </div>
+      </div> <!-- /socPanelEvents -->
+
+      <!-- AUDIT TRAIL panel -->
+      <div id="socPanelAudit" style="display:none">
+        <div class="section-panel">
+          <div class="section-header" style="flex-wrap:wrap;gap:12px">
+            <div class="panel-title">AUDIT TRAIL</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="auditActionFilter" onchange="loadAuditTrail()"
+                style="background:#040f0c;border:1px solid #0a2a1f;color:#a0d4c0;padding:5px 10px;font-family:'Share Tech Mono',monospace;font-size:0.65rem">
+                <option value="">ALL ACTIONS</option>
+                <option value="LOGIN">LOGIN</option>
+                <option value="LOGOUT">LOGOUT</option>
+                <option value="UPLOAD">UPLOAD</option>
+                <option value="IP_BLOCK">IP_BLOCK</option>
+                <option value="IP_UNBLOCK">IP_UNBLOCK</option>
+                <option value="TOTP_ENABLE">TOTP_ENABLE</option>
+              </select>
+              <button onclick="loadAuditTrail()"
+                style="background:transparent;border:1px solid var(--border);color:var(--muted);
+                font-family:'Share Tech Mono',monospace;font-size:0.6rem;padding:5px 12px;cursor:pointer">
+                ↻ REFRESH
+              </button>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr><th>TIME</th><th>ACTOR</th><th>IP</th><th>ACTION</th><th>TARGET</th><th>DETAIL</th></tr>
+            </thead>
+            <tbody id="auditTableBody">
+              <tr><td colspan="6" class="empty-state">// LOADING...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- IP BLACKLIST panel -->
+      <div id="socPanelIPBlock" style="display:none">
+        <div class="section-panel" style="margin-bottom:16px">
+          <div class="section-header">
+            <div class="panel-title">BLOCK IP ADDRESS</div>
+          </div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;padding:0 0 16px 0">
+            <input type="text" id="blockIPInput" placeholder="e.g. 192.168.1.1"
+              style="flex:1;min-width:160px;background:transparent;border:1px solid var(--border);
+              color:var(--text);font-family:'Share Tech Mono',monospace;font-size:0.75rem;padding:8px 12px"/>
+            <input type="text" id="blockIPReason" placeholder="Reason (optional)"
+              style="flex:2;min-width:200px;background:transparent;border:1px solid var(--border);
+              color:var(--text);font-family:'Share Tech Mono',monospace;font-size:0.75rem;padding:8px 12px"/>
+            <button onclick="blockIP()"
+              style="background:rgba(255,45,107,0.08);border:1px solid var(--danger);color:var(--danger);
+              font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:2px;
+              padding:8px 20px;cursor:pointer">✕ BLOCK IP</button>
+          </div>
+          <div id="ipBlockMsg" style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;min-height:16px;color:var(--success)"></div>
+        </div>
+        <div class="section-panel">
+          <div class="section-header">
+            <div class="panel-title">BLOCKED IPs</div>
+            <span id="ipBlockCount" style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--muted)">—</span>
+          </div>
+          <table>
+            <thead>
+              <tr><th>IP ADDRESS</th><th>REASON</th><th>BLOCKED BY</th><th>BLOCKED AT</th><th>ACTION</th></tr>
+            </thead>
+            <tbody id="ipBlacklistBody">
+              <tr><td colspan="5" class="empty-state">// NO BLOCKED IPs</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
 
     <!-- ══════ ADMIN: USERS ══════ -->
@@ -771,6 +873,12 @@
 </div>
 
 <script>
+  // ── AUTH GUARD — redirect to login if no token ──
+  (function() {
+    const token = localStorage.getItem("token");
+    if (!token) { window.location.replace("login.html"); }
+  })();
+
   const role = localStorage.getItem("role") || "analyst";
 
   // ── AUTH FETCH — adds JWT to every request, handles expiry ──
@@ -1471,10 +1579,16 @@
     } catch (e) {}
   }
 
-  function logout() {
+  async function logout() {
+    try {
+      const t = localStorage.getItem("token");
+      if (t) await fetch("/logout", { method:"POST", headers:{ "Authorization":"Bearer " + t } });
+    } catch(e) {}
+    localStorage.removeItem("token");
     localStorage.removeItem("role");
     localStorage.removeItem("email");
     localStorage.removeItem("avatar");
+    localStorage.removeItem("name");
     window.location.href = "login.html";
   }
 
@@ -2346,10 +2460,10 @@
   function _rnd(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
   function _pick(arr)      { return arr[Math.floor(Math.random() * arr.length)]; }
 
-  function generateCSVData(size, fraudRate, profile, addNoise, addEdge) {
+  function generateCSVData(size, fraudRate, profile, addNoise, addEdge, includeLocation = true) {
     const rows   = [];
-    const header = 'amount,claims,age,policy_duration,incident_type,witnesses,police_report,premium_amount,vehicle_age,location';
     const CITIES = ['Mumbai','Delhi','Bangalore','Hyderabad','Ahmedabad','Chennai','Kolkata','Pune','Jaipur','Lucknow','Surat','Nagpur','Indore','Bhopal','Patna','Vadodara','Ludhiana','Rajkot','Meerut','Varanasi','Noida','Gurugram','Chandigarh','Coimbatore','Guwahati','Raipur','Jodhpur','Madurai','Kota','Ranchi','Amritsar','Visakhapatnam','Aurangabad','Nashik','Thane','Mysuru','Vijayawada','Gwalior','Jabalpur','Agra'];
+    const header = includeLocation ? 'amount,claims,age,policy_duration,incident_type,witnesses,police_report,premium_amount,vehicle_age,location' : 'amount,claims,age,policy_duration,incident_type,witnesses,police_report,premium_amount,vehicle_age';
 
     // Edge cases (2% if enabled)
     const edgeCount = addEdge ? Math.floor(size * 0.02) : 0;
@@ -2434,9 +2548,11 @@
     }
 
     // Assign random city location to each row
-    rows.forEach(r => {
-      r.location = CITIES[Math.floor(Math.random() * CITIES.length)];
-    });
+    if (includeLocation) {
+      rows.forEach(r => {
+        r.location = CITIES[Math.floor(Math.random() * CITIES.length)];
+      });
+    }
 
     // Shuffle
     for (let i = rows.length - 1; i > 0; i--) {
@@ -2445,7 +2561,9 @@
     }
 
     const csvRows = rows.map(r =>
-      `${r.amount},${r.claims},${r.age},${r.policy_duration},${r.incident_type},${r.witnesses},${r.police_report},${r.premium_amount},${r.vehicle_age},${r.location}`
+      includeLocation
+        ? `${r.amount},${r.claims},${r.age},${r.policy_duration},${r.incident_type},${r.witnesses},${r.police_report},${r.premium_amount},${r.vehicle_age},${r.location||''}`
+        : `${r.amount},${r.claims},${r.age},${r.policy_duration},${r.incident_type},${r.witnesses},${r.police_report},${r.premium_amount},${r.vehicle_age}`
     );
     return header + '\n' + csvRows.join('\n');
   }
@@ -2457,6 +2575,7 @@
     const addNoise = true;
     const addEdge  = false;
     const doDownload = false;
+    const includeLocation = document.getElementById('genIncludeLocation')?.checked !== false;
     const filename = `generated_${size}_rows.csv`;
 
     if (size > 200000) { alert('Max 2,00,000 rows supported ❌'); return; }
@@ -2478,7 +2597,7 @@
     progText.innerText = '// BUILDING DATASET...';
     await new Promise(r => setTimeout(r, 20));
 
-    const csvData = generateCSVData(size, fraud, profile, addNoise, addEdge);
+    const csvData = generateCSVData(size, fraud, profile, addNoise, addEdge, includeLocation);
 
     fill.style.width = '60%';
     progText.innerText = '// UPLOADING TO SERVER...';
@@ -2797,6 +2916,129 @@
       console.error("Geo heatmap error:", err);
       document.getElementById("mapOverlay").innerHTML = "// ERROR LOADING MAP DATA";
     }
+  }
+
+
+  // ══════════════════════════════════════════
+  // SOC SUB-TABS
+  // ══════════════════════════════════════════
+  function showSOCTab(tab) {
+    ['events','audit','ipblock'].forEach(t => {
+      document.getElementById('socPanel' + t.charAt(0).toUpperCase() + t.slice(1) + (t==='events'?'Events':t==='audit'?'Audit':'IPBlock')).style.display = 'none';
+    });
+    document.getElementById('socPanelEvents').style.display  = tab === 'events'  ? 'block' : 'none';
+    document.getElementById('socPanelAudit').style.display   = tab === 'audit'   ? 'block' : 'none';
+    document.getElementById('socPanelIPBlock').style.display = tab === 'ipblock' ? 'block' : 'none';
+
+    ['socTab1','socTab2','socTab3'].forEach((id,i) => {
+      const el = document.getElementById(id);
+      const active = (i === ['events','audit','ipblock'].indexOf(tab));
+      el.style.background = active ? 'rgba(0,255,200,0.08)' : 'transparent';
+      el.style.color = active ? 'var(--accent)' : 'var(--muted)';
+    });
+
+    if (tab === 'audit')   loadAuditTrail();
+    if (tab === 'ipblock') loadIPBlacklist();
+  }
+
+  // ══════════════════════════════════════════
+  // AUDIT TRAIL
+  // ══════════════════════════════════════════
+  async function loadAuditTrail() {
+    const action = document.getElementById('auditActionFilter')?.value || '';
+    const url    = '/audit-trail?limit=200' + (action ? '&action=' + action : '');
+    try {
+      const res  = await authFetch(url);
+      const logs = await res.json();
+      const tbody = document.getElementById('auditTableBody');
+      if (!logs.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">// NO AUDIT LOGS YET</td></tr>';
+        return;
+      }
+      const ACTION_COLOR = {
+        LOGIN:'var(--success)', LOGOUT:'var(--muted)', UPLOAD:'var(--accent)',
+        IP_BLOCK:'var(--danger)', IP_UNBLOCK:'#ffaa00',
+        TOTP_ENABLE:'var(--success)', TOTP_DISABLE:'var(--danger)'
+      };
+      tbody.innerHTML = logs.map(l => {
+        const color = ACTION_COLOR[l.action] || 'var(--text)';
+        const after = l.after ? JSON.stringify(l.after).slice(0,60) : '—';
+        return `<tr>
+          <td style="white-space:nowrap">${new Date(l.timestamp).toLocaleString('en-IN')}</td>
+          <td style="color:var(--accent)">${l.actor || '—'}</td>
+          <td style="color:var(--muted);font-size:0.6rem">${l.ip || '—'}</td>
+          <td><span style="color:${color};font-weight:600;letter-spacing:1px">${l.action}</span></td>
+          <td>${l.target || '—'}</td>
+          <td style="color:var(--muted);font-size:0.6rem;max-width:200px;overflow:hidden;text-overflow:ellipsis">${after}</td>
+        </tr>`;
+      }).join('');
+    } catch(e) {
+      document.getElementById('auditTableBody').innerHTML =
+        '<tr><td colspan="6" class="empty-state">// ERROR LOADING AUDIT TRAIL</td></tr>';
+    }
+  }
+
+  // ══════════════════════════════════════════
+  // IP BLACKLIST
+  // ══════════════════════════════════════════
+  async function loadIPBlacklist() {
+    try {
+      const res  = await authFetch('/ip-blacklist');
+      const list = await res.json();
+      const tbody = document.getElementById('ipBlacklistBody');
+      document.getElementById('ipBlockCount').innerText = list.length + ' blocked';
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">// NO BLOCKED IPs</td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map(item => `<tr>
+        <td style="color:var(--danger);font-weight:600">${item.ip}</td>
+        <td>${item.reason || '—'}</td>
+        <td style="color:var(--muted)">${item.blockedBy}</td>
+        <td style="color:var(--muted)">${new Date(item.blockedAt).toLocaleString('en-IN')}</td>
+        <td>
+          <button onclick="unblockIP('${item.ip}')"
+            style="background:transparent;border:1px solid var(--success);color:var(--success);
+            font-family:'Share Tech Mono',monospace;font-size:0.55rem;padding:4px 10px;cursor:pointer">
+            UNBLOCK
+          </button>
+        </td>
+      </tr>`).join('');
+    } catch(e) {
+      document.getElementById('ipBlacklistBody').innerHTML =
+        '<tr><td colspan="5" class="empty-state">// ERROR</td></tr>';
+    }
+  }
+
+  async function blockIP() {
+    const ip     = document.getElementById('blockIPInput').value.trim();
+    const reason = document.getElementById('blockIPReason').value.trim();
+    const msg    = document.getElementById('ipBlockMsg');
+    if (!ip) { msg.style.color='var(--danger)'; msg.innerText='// IP address required'; return; }
+    try {
+      const res  = await authFetch('/ip-blacklist', { method:'POST', body: JSON.stringify({ ip, reason }) });
+      const data = await res.json();
+      if (res.ok) {
+        msg.style.color = 'var(--success)';
+        msg.innerText = '// ' + ip + ' BLOCKED ✅';
+        document.getElementById('blockIPInput').value  = '';
+        document.getElementById('blockIPReason').value = '';
+        loadIPBlacklist();
+      } else {
+        msg.style.color = 'var(--danger)';
+        msg.innerText = '// ERROR: ' + (data.error || 'Failed');
+      }
+    } catch(e) {
+      msg.style.color = 'var(--danger)'; msg.innerText = '// NETWORK ERROR';
+    }
+    setTimeout(() => { msg.innerText = ''; }, 4000);
+  }
+
+  async function unblockIP(ip) {
+    try {
+      await authFetch('/ip-blacklist/' + encodeURIComponent(ip), { method:'DELETE' });
+      loadIPBlacklist();
+    } catch(e) {}
   }
 
 </script>
