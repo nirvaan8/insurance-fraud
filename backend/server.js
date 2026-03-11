@@ -401,7 +401,7 @@ app.get("/totp-status", async (req, res) => {
 const upload = multer({ dest: "uploads/" });
 
 /* ================= ROOT ================= */
-app.get("/", (req, res) => res.redirect("/register.html"));
+app.get("/", (req, res) => res.redirect("/login.html"));
 
 /* ================= SERVE FRONTEND ================= */
 app.use(express.static(path.resolve(__dirname, "../frontend")));
