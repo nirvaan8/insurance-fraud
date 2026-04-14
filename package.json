@@ -1,26 +1,26 @@
 {
-  "name": "insurance-fraud",
+  "name": "fraudsys",
   "version": "1.0.0",
-  "description": "",
-  "main": "backend/server.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "start": "node backend/server.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/nirvaan8/insurance-fraud.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/nirvaan8/insurance-fraud/issues"
-  },
-  "homepage": "https://github.com/nirvaan8/insurance-fraud#readme",
   "dependencies": {
-    "cors": "^2.8.6",
-    "express": "^5.2.1",
-    "multer": "^2.0.2"
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "csv-parser": "^3.0.0",
+    "express": "^4.18.2",
+    "express-mongo-sanitize": "^2.2.0",
+    "express-rate-limit": "^7.2.0",
+    "google-auth-library": "^9.6.3",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.2.0",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.13",
+    "qrcode": "^1.5.4",
+    "speakeasy": "^2.0.0",
+    "xss-clean": "^0.1.4"
   }
 }
