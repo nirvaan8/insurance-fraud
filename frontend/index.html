@@ -80,9 +80,9 @@
   </div>
 
   <div class="content">
+
     <!-- ─── DASHBOARD SECTION ─── -->
     <div id="section-dashboard">
-      <!-- Stat Cards -->
       <div class="cards">
         <div class="card"><div class="card-label">TOTAL CASES</div><div class="card-value" id="statTotal">0</div><div class="card-corner">▣</div></div>
         <div class="card"><div class="card-label">LOW RISK</div><div class="card-value" id="statLow">0</div><div class="card-corner">△</div></div>
@@ -92,7 +92,6 @@
         <div class="card"><div class="card-label">AVG CONFIDENCE</div><div class="card-value" id="statConf">0%</div><div class="card-corner">◉</div></div>
       </div>
 
-      <!-- Charts -->
       <div class="charts">
         <div class="chart-panel">
           <div class="panel-title">CLAIM AMOUNT TIMELINE</div>
@@ -108,7 +107,6 @@
         </div>
       </div>
 
-      <!-- Case Records Table -->
       <div class="table-panel">
         <div class="table-header">
           <span class="table-title">CASE RECORDS</span>
@@ -140,7 +138,6 @@
 
     <!-- ─── UPLOAD SECTION ─── -->
     <div id="section-upload" style="display:none">
-      <!-- Quick Generate -->
       <div class="quick-gen">
         <div class="quick-gen-title">⚡ QUICK GENERATE — NO FILE UPLOAD NEEDED</div>
         <div class="quick-gen-btns">
@@ -158,7 +155,6 @@
         <div class="gen-status" id="genStatus"></div>
       </div>
 
-      <!-- CSV Upload -->
       <div class="section-panel">
         <div class="section-header"><span class="section-title">CSV FILE UPLOAD</span></div>
         <div class="section-body">
@@ -260,7 +256,6 @@
         </div>
       </div>
 
-      <!-- Audit Trail -->
       <div class="section-panel">
         <div class="section-header"><span class="section-title">AUDIT TRAIL</span>
           <button class="btn btn-accent" style="font-size:0.52rem;padding:5px 14px" onclick="loadAudit()">↺ REFRESH</button>
@@ -276,14 +271,13 @@
         </div>
       </div>
 
-      <!-- IP Blacklist -->
       <div class="section-panel">
         <div class="section-header"><span class="section-title">IP BLACKLIST</span></div>
         <div class="section-body">
           <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-            <input type="text" id="blockIP"     placeholder="IP address" class="input-field" style="width:160px">
-            <input type="text" id="blockReason" placeholder="Reason" class="input-field" style="flex:1;min-width:150px">
-            <button class="btn btn-danger" onclick="blockIP()" style="font-size:0.54rem">BLOCK IP</button>
+            <input type="text" id="blockIP"     placeholder="IP address"  class="input-field" style="width:160px">
+            <input type="text" id="blockReason" placeholder="Reason"      class="input-field" style="flex:1;min-width:150px">
+            <button class="btn btn-danger" onclick="blockIPAction()" style="font-size:0.54rem">BLOCK IP</button>
           </div>
           <table>
             <thead><tr><th>IP ADDRESS</th><th>REASON</th><th>BLOCKED BY</th><th>DATE</th><th>ACTION</th></tr></thead>
@@ -303,7 +297,8 @@
           <span class="section-title">GEO FRAUD HEATMAP — INDIA</span>
           <button class="btn btn-accent" style="font-size:0.52rem;padding:5px 14px" onclick="loadGeoMap()">↺ REFRESH</button>
         </div>
-        <div id="geoMap"></div>
+        <!-- height:480px fixes the getImageData width-0 canvas error -->
+        <div id="geoMap" style="height:480px;width:100%;z-index:1"></div>
         <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:16px;flex-wrap:wrap">
           <span style="font-family:'Share Tech Mono',monospace;font-size:0.52rem;color:var(--muted)">🟢 LOW DENSITY</span>
           <span style="font-family:'Share Tech Mono',monospace;font-size:0.52rem;color:var(--warning)">🟡 MEDIUM</span>
@@ -336,7 +331,7 @@
               <label>GOOGLE AUTHENTICATOR</label>
               <div class="totp-status">
                 <span id="totpStatusText" class="totp-off">DISABLED</span>
-                <button class="btn btn-danger"  id="disableTotpBtn" onclick="disableTOTP()" style="font-size:0.5rem;padding:4px 12px;display:none">DISABLE</button>
+                <button class="btn btn-danger" id="disableTotpBtn" onclick="disableTOTP()" style="font-size:0.5rem;padding:4px 12px;display:none">DISABLE</button>
               </div>
             </div>
           </div>
@@ -344,6 +339,7 @@
         </div>
       </div>
     </div>
+
   </div>
 </div>
 
@@ -365,7 +361,6 @@
   </div>
 </div>
 
-<!-- Toast container -->
 <div class="toast-container" id="toastContainer"></div>
 
 <script>
@@ -376,10 +371,11 @@ const token = localStorage.getItem("token");
 const role  = localStorage.getItem("role")  || "analyst";
 const email = localStorage.getItem("email") || "";
 
-let allResults  = [];
+let allResults = [];
 let lineChart, doughnutChart, barChart;
 let geoMap, heatLayer;
-let aiHistory   = [];
+let aiHistory  = [];
+let geoMapInit = false;
 
 /* ── Auth guard ── */
 if (!token) window.location.href = "/login.html";
@@ -403,13 +399,13 @@ setInterval(() => {
 ════════════════════════════════════════ */
 const sections = ["dashboard","upload","history","users","soc","geo","account"];
 const titles   = {
-  dashboard: ["THREAT DASHBOARD",         "// REAL-TIME FRAUD ANALYSIS ENGINE"],
-  upload:    ["UPLOAD DATA",              "// CSV UPLOAD & SYNTHETIC GENERATION"],
-  history:   ["UPLOAD HISTORY",           "// HISTORICAL DATASET LOG"],
-  users:     ["USER MANAGEMENT",          "// REGISTERED ACCOUNTS"],
-  soc:       ["SOC EVENTS",               "// SECURITY OPERATIONS CENTER"],
-  geo:       ["GEO FRAUD HEATMAP",        "// INDIA FRAUD DENSITY MAP"],
-  account:   ["ACCOUNT SETTINGS",         "// PROFILE & SECURITY"]
+  dashboard: ["THREAT DASHBOARD",      "// REAL-TIME FRAUD ANALYSIS ENGINE"],
+  upload:    ["UPLOAD DATA",           "// CSV UPLOAD & SYNTHETIC GENERATION"],
+  history:   ["UPLOAD HISTORY",        "// HISTORICAL DATASET LOG"],
+  users:     ["USER MANAGEMENT",       "// REGISTERED ACCOUNTS"],
+  soc:       ["SOC EVENTS",            "// SECURITY OPERATIONS CENTER"],
+  geo:       ["GEO FRAUD HEATMAP",     "// INDIA FRAUD DENSITY MAP"],
+  account:   ["ACCOUNT SETTINGS",      "// PROFILE & SECURITY"]
 };
 
 function showSection(id, el) {
@@ -418,13 +414,10 @@ function showSection(id, el) {
   });
   document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
   if (el) el.classList.add("active");
-
   const t = titles[id] || [id.toUpperCase(), ""];
   document.getElementById("pageTitle").textContent = t[0];
   document.getElementById("pageCrumb").textContent = t[1];
-
   closeSidebar();
-
   if (id === "history") loadHistory();
   if (id === "users")   loadUsers();
   if (id === "soc")     { loadSOC(); loadAudit(); loadIPBlacklist(); }
@@ -444,23 +437,28 @@ function closeSidebar() {
 /* ════════════════════════════════════════
    TOAST
 ════════════════════════════════════════ */
-function toast(msg, type = "info") {
+function toast(msg, type) {
   const el = document.createElement("div");
-  el.className = "toast toast-" + type;
+  el.className = "toast toast-" + (type || "info");
   el.textContent = msg;
   document.getElementById("toastContainer").appendChild(el);
   setTimeout(() => el.remove(), 4000);
 }
 
 /* ════════════════════════════════════════
-   DATA LOADING
+   API HELPER
 ════════════════════════════════════════ */
-async function api(url, opts = {}) {
-  const res = await fetch(url, { headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" }, ...opts });
+async function api(url, opts) {
+  opts = opts || {};
+  const headers = Object.assign({ "Authorization": "Bearer " + token, "Content-Type": "application/json" }, opts.headers || {});
+  const res = await fetch(url, Object.assign({}, opts, { headers }));
   if (res.status === 401) { localStorage.clear(); window.location.href = "/login.html"; }
   return res;
 }
 
+/* ════════════════════════════════════════
+   DATA LOADING
+════════════════════════════════════════ */
 async function loadDashboard(data) {
   if (!data) {
     const res = await api("/results?limit=1000");
@@ -473,18 +471,25 @@ async function loadDashboard(data) {
   renderCharts(data);
 }
 
-async function refreshData() { await loadDashboard(); toast("Dashboard refreshed","info"); }
-async function loadAll()     { const res = await api("/results?limit=100000"); if(res.ok){ const d=await res.json(); await loadDashboard(d); toast(`Loaded ${d.length.toLocaleString()} records`,"info");} }
+async function refreshData() { await loadDashboard(); toast("Dashboard refreshed", "info"); }
+async function loadAll() {
+  const res = await api("/results?limit=100000");
+  if (res.ok) {
+    const d = await res.json();
+    await loadDashboard(d);
+    toast("Loaded " + d.length.toLocaleString() + " records", "info");
+  }
+}
 
 /* ════════════════════════════════════════
    STATS
 ════════════════════════════════════════ */
 function updateStats(data) {
-  const high  = data.filter(r => r.risk === "High").length;
-  const med   = data.filter(r => r.risk === "Medium").length;
-  const low   = data.filter(r => r.risk === "Low").length;
-  const anom  = data.filter(r => r.anomaly?.isAnomaly).length;
-  const conf  = data.length ? (data.reduce((s,r)=>s+(r.confidence||0),0)/data.length*100).toFixed(0) : 0;
+  const high = data.filter(function(r) { return r.risk === "High"; }).length;
+  const med  = data.filter(function(r) { return r.risk === "Medium"; }).length;
+  const low  = data.filter(function(r) { return r.risk === "Low"; }).length;
+  const anom = data.filter(function(r) { return r.anomaly && r.anomaly.isAnomaly; }).length;
+  const conf = data.length ? (data.reduce(function(s,r) { return s + (r.confidence || 0); }, 0) / data.length * 100).toFixed(0) : 0;
 
   animateCount("statTotal", data.length);
   animateCount("statLow",   low);
@@ -495,43 +500,52 @@ function updateStats(data) {
 }
 
 function animateCount(id, target) {
-  const el = document.getElementById(id);
-  gsap.to({ val: 0 }, { val: target, duration: 1.2, ease: "power2.out", onUpdate: function() { el.textContent = Math.round(this.targets()[0].val).toLocaleString(); } });
+  var el = document.getElementById(id);
+  gsap.to({ val: 0 }, {
+    val: target, duration: 1.2, ease: "power2.out",
+    onUpdate: function() { el.textContent = Math.round(this.targets()[0].val).toLocaleString(); }
+  });
 }
 
 /* ════════════════════════════════════════
    TABLE
 ════════════════════════════════════════ */
 function renderTable(data) {
-  const filter = document.getElementById("riskFilter").value;
-  const rows   = filter ? data.filter(r => r.risk === filter) : data;
-  const tb     = document.getElementById("tableBody");
-  const empty  = document.getElementById("tableEmpty");
+  var filter = document.getElementById("riskFilter").value;
+  var rows   = filter ? data.filter(function(r) { return r.risk === filter; }) : data;
+  var tb     = document.getElementById("tableBody");
+  var empty  = document.getElementById("tableEmpty");
 
-  document.getElementById("tableCount").textContent = `${rows.length.toLocaleString()} records`;
+  document.getElementById("tableCount").textContent = rows.length.toLocaleString() + " records";
 
   if (!rows.length) { tb.innerHTML = ""; empty.style.display = "flex"; return; }
   empty.style.display = "none";
 
-  tb.innerHTML = rows.slice(0, 500).map((r, i) => `
-    <tr>
-      <td class="mono-sm">${i+1}</td>
-      <td>₹${(r.amount||0).toLocaleString()}</td>
-      <td>${r.claims||0}</td>
-      <td>${r.age||0}</td>
-      <td>${r.policyDuration||0}</td>
-      <td style="text-transform:capitalize">${r.incidentType||"—"}</td>
-      <td>${r.witnesses??0}</td>
-      <td>${r.policeReport?"YES":"NO"}</td>
-      <td>₹${(r.premiumAmount||0).toLocaleString()}</td>
-      <td>${r.vehicleAge||0}y</td>
-      <td><span class="risk-badge risk-${(r.risk||"low").toLowerCase()}">${r.risk||"Low"}</span></td>
-      <td>${((r.confidence||0)*100).toFixed(0)}%</td>
-      <td>${r.riskScore||0}</td>
-      <td>${r.anomaly?.isAnomaly ? '<span style="color:var(--warning)">YES</span>' : '<span style="color:var(--muted)">NO</span>'}</td>
-      <td>${(r.flags||[]).map(f=>`<span class="flag-chip">${f}</span>`).join("")||"—"}</td>
-      <td class="mono-sm">${r.location||"—"}</td>
-    </tr>`).join("");
+  tb.innerHTML = rows.slice(0, 500).map(function(r, i) {
+    var conf      = ((r.confidence || 0) * 100).toFixed(0);
+    var anomHtml  = r.anomaly && r.anomaly.isAnomaly
+      ? '<span style="color:var(--warning)">YES</span>'
+      : '<span style="color:var(--muted)">NO</span>';
+    var flagsHtml = (r.flags || []).map(function(f) { return '<span class="flag-chip">' + f + '</span>'; }).join("") || "—";
+    return "<tr>" +
+      "<td class='mono-sm'>" + (i + 1) + "</td>" +
+      "<td>₹" + (r.amount || 0).toLocaleString() + "</td>" +
+      "<td>" + (r.claims || 0) + "</td>" +
+      "<td>" + (r.age || 0) + "</td>" +
+      "<td>" + (r.policyDuration || 0) + "</td>" +
+      "<td style='text-transform:capitalize'>" + (r.incidentType || "—") + "</td>" +
+      "<td>" + (r.witnesses !== undefined ? r.witnesses : 0) + "</td>" +
+      "<td>" + (r.policeReport ? "YES" : "NO") + "</td>" +
+      "<td>₹" + (r.premiumAmount || 0).toLocaleString() + "</td>" +
+      "<td>" + (r.vehicleAge || 0) + "y</td>" +
+      "<td><span class='risk-badge risk-" + (r.risk || "low").toLowerCase() + "'>" + (r.risk || "Low") + "</span></td>" +
+      "<td>" + conf + "%</td>" +
+      "<td>" + (r.riskScore || 0) + "</td>" +
+      "<td>" + anomHtml + "</td>" +
+      "<td>" + flagsHtml + "</td>" +
+      "<td class='mono-sm'>" + (r.location || "—") + "</td>" +
+      "</tr>";
+  }).join("");
 }
 
 function filterTable() { renderTable(allResults); }
@@ -539,48 +553,65 @@ function filterTable() { renderTable(allResults); }
 /* ════════════════════════════════════════
    CHARTS
 ════════════════════════════════════════ */
-const C = { accent:"#00ffc8", danger:"#ff2d6b", warning:"#ffaa00", muted:"rgba(74,122,112,0.4)", panel:"#041a12", text:"#4a7a70" };
+var C = { accent:"#00ffc8", danger:"#ff2d6b", warning:"#ffaa00", muted:"rgba(74,122,112,0.4)", text:"#4a7a70" };
 
 function renderCharts(data) {
-  /* Line chart — claim amounts */
-  const sample = data.slice(0,60);
-  const labels = sample.map((_,i) => "C"+(i+1));
-  const amounts = sample.map(r => r.amount||0);
+  var sample  = data.slice(0, 60);
+  var labels  = sample.map(function(_, i) { return "C" + (i + 1); });
+  var amounts = sample.map(function(r) { return r.amount || 0; });
 
-  if (lineChart) lineChart.destroy();
-  lineChart = new Chart(document.getElementById("lineChart"), {
-    type:"line",
-    data:{ labels, datasets:[{ label:"Claim Amount", data:amounts, borderColor:C.accent, backgroundColor:"rgba(0,255,200,0.05)", borderWidth:1.5, pointBackgroundColor:C.accent, pointRadius:2, tension:0.3 }]},
-    options:{ responsive:true, plugins:{ legend:{ labels:{ color:C.text, font:{ size:10 } } } }, scales:{
-      x:{ ticks:{ color:C.text, font:{size:9}, maxTicksLimit:10 }, grid:{ color:C.muted } },
-      y:{ ticks:{ color:C.text, font:{size:9}, callback:v=>"₹"+(v>=100000?(v/100000).toFixed(0)+"L":v.toLocaleString()) }, grid:{ color:C.muted } }
-    }}
-  });
-
-  /* Doughnut — risk distribution */
-  const high = data.filter(r=>r.risk==="High").length;
-  const med  = data.filter(r=>r.risk==="Medium").length;
-  const low  = data.filter(r=>r.risk==="Low").length;
-
+  if (lineChart)    lineChart.destroy();
   if (doughnutChart) doughnutChart.destroy();
-  doughnutChart = new Chart(document.getElementById("doughnutChart"), {
-    type:"doughnut",
-    data:{ labels:["Low","Medium","High"], datasets:[{ data:[low,med,high], backgroundColor:[C.accent,C.warning,C.danger], borderWidth:0, hoverBorderWidth:2 }]},
-    options:{ responsive:true, cutout:"65%", plugins:{ legend:{ labels:{ color:C.text, font:{size:10}, boxWidth:10 } } }}
+  if (barChart)     barChart.destroy();
+
+  lineChart = new Chart(document.getElementById("lineChart"), {
+    type: "line",
+    data: { labels: labels, datasets: [{ label: "Claim Amount", data: amounts,
+      borderColor: C.accent, backgroundColor: "rgba(0,255,200,0.05)",
+      borderWidth: 1.5, pointBackgroundColor: C.accent, pointRadius: 2, tension: 0.3 }]},
+    options: { responsive: true,
+      plugins: { legend: { labels: { color: C.text, font: { size: 10 } } } },
+      scales: {
+        x: { ticks: { color: C.text, font: { size: 9 }, maxTicksLimit: 10 }, grid: { color: C.muted } },
+        y: { ticks: { color: C.text, font: { size: 9 },
+          callback: function(v) { return "₹" + (v >= 100000 ? (v / 100000).toFixed(0) + "L" : v.toLocaleString()); }
+        }, grid: { color: C.muted } }
+      }
+    }
   });
 
-  /* Bar — confidence distribution */
-  const bands = [0,10,20,30,40,50,60,70,80,90];
-  const counts = bands.map(b => data.filter(r=>{ const c=(r.confidence||0)*100; return c>=b&&c<b+10; }).length);
+  var high = data.filter(function(r) { return r.risk === "High"; }).length;
+  var med  = data.filter(function(r) { return r.risk === "Medium"; }).length;
+  var low  = data.filter(function(r) { return r.risk === "Low"; }).length;
 
-  if (barChart) barChart.destroy();
+  doughnutChart = new Chart(document.getElementById("doughnutChart"), {
+    type: "doughnut",
+    data: { labels: ["Low","Medium","High"], datasets: [{
+      data: [low, med, high],
+      backgroundColor: [C.accent, C.warning, C.danger], borderWidth: 0, hoverBorderWidth: 2
+    }]},
+    options: { responsive: true, cutout: "65%",
+      plugins: { legend: { labels: { color: C.text, font: { size: 10 }, boxWidth: 10 } } }
+    }
+  });
+
+  var bands  = [0,10,20,30,40,50,60,70,80,90];
+  var counts = bands.map(function(b) {
+    return data.filter(function(r) { var c = (r.confidence || 0) * 100; return c >= b && c < b + 10; }).length;
+  });
+
   barChart = new Chart(document.getElementById("barChart"), {
-    type:"bar",
-    data:{ labels:bands.map(b=>b+"%"), datasets:[{ label:"Records", data:counts, backgroundColor:"rgba(0,255,200,0.4)", borderColor:C.accent, borderWidth:1 }]},
-    options:{ responsive:true, plugins:{ legend:{ labels:{ color:C.text, font:{size:10} } } }, scales:{
-      x:{ ticks:{ color:C.text, font:{size:9} }, grid:{ color:C.muted } },
-      y:{ ticks:{ color:C.text, font:{size:9} }, grid:{ color:C.muted } }
-    }}
+    type: "bar",
+    data: { labels: bands.map(function(b) { return b + "%"; }),
+      datasets: [{ label: "Records", data: counts,
+        backgroundColor: "rgba(0,255,200,0.4)", borderColor: C.accent, borderWidth: 1 }]},
+    options: { responsive: true,
+      plugins: { legend: { labels: { color: C.text, font: { size: 10 } } } },
+      scales: {
+        x: { ticks: { color: C.text, font: { size: 9 } }, grid: { color: C.muted } },
+        y: { ticks: { color: C.text, font: { size: 9 } }, grid: { color: C.muted } }
+      }
+    }
   });
 }
 
@@ -588,13 +619,13 @@ function renderCharts(data) {
    UPLOAD
 ════════════════════════════════════════ */
 function fileSelected(input) {
-  document.getElementById("fileName").textContent = input.files[0]?.name || "No file selected";
+  document.getElementById("fileName").textContent = input.files[0] ? input.files[0].name : "No file selected";
 }
 
 async function uploadCSV() {
-  const file = document.getElementById("csvFile").files[0];
-  if (!file) return toast("Select a CSV file first","error");
-  const form = new FormData();
+  var file = document.getElementById("csvFile").files[0];
+  if (!file) return toast("Select a CSV file first", "error");
+  var form = new FormData();
   form.append("file", file);
   form.append("uploadedBy", email);
 
@@ -604,45 +635,60 @@ async function uploadCSV() {
   document.getElementById("progressText").textContent = "Uploading & processing...";
 
   try {
-    const res  = await fetch("/upload", { method:"POST", headers:{"Authorization":"Bearer "+token}, body:form });
-    const data = await res.json();
+    var res  = await fetch("/upload", { method: "POST", headers: { "Authorization": "Bearer " + token }, body: form });
+    var data = await res.json();
     document.getElementById("progressFill").style.width = "100%";
     if (res.ok) {
-      document.getElementById("progressText").textContent = `✅ ${data.length.toLocaleString()} rows processed`;
-      toast(`Upload complete — ${data.length.toLocaleString()} rows analyzed`,"success");
+      document.getElementById("progressText").textContent = "✅ " + data.length.toLocaleString() + " rows processed";
+      toast("Upload complete — " + data.length.toLocaleString() + " rows analyzed", "success");
       await loadDashboard(data);
       showSection("dashboard", document.getElementById("nav-dashboard"));
     } else {
-      document.getElementById("progressText").textContent = "❌ " + (data.error||"Upload failed");
-      toast(data.error||"Upload failed","error");
+      document.getElementById("progressText").textContent = "❌ " + (data.error || "Upload failed");
+      toast(data.error || "Upload failed", "error");
     }
   } catch(e) {
     document.getElementById("progressText").textContent = "❌ Network error";
-    toast("Network error","error");
+    toast("Network error", "error");
   } finally {
     document.getElementById("uploadBtn").disabled = false;
-    setTimeout(()=>{ document.getElementById("uploadProgress").style.display="none"; document.getElementById("progressFill").style.width="0%"; }, 3000);
+    setTimeout(function() {
+      document.getElementById("uploadProgress").style.display = "none";
+      document.getElementById("progressFill").style.width = "0%";
+    }, 3000);
   }
 }
 
 /* ── Quick Generate ── */
 async function quickGen(count, fraudRate) {
-  const status = document.getElementById("genStatus");
-  status.style.color = "var(--accent)";
-  status.textContent = `⏳ Generating ${count.toLocaleString()} rows at ${fraudRate}% fraud rate...`;
-  const t0 = Date.now();
+  var status = document.getElementById("genStatus");
+  status.style.color   = "var(--accent)";
+  status.textContent   = "⏳ Generating " + count.toLocaleString() + " rows at " + fraudRate + "% fraud rate...";
+  var t0 = Date.now();
   try {
-    const res  = await fetch("/generate-data", { method:"POST", headers:{"Content-Type":"application/json","Authorization":"Bearer "+token}, body:JSON.stringify({count,fraudRate,uploadedBy:email}) });
-    const data = await res.json();
+    var res  = await fetch("/generate-data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+      body: JSON.stringify({ count: count, fraudRate: fraudRate, uploadedBy: email })
+    });
+    var data = await res.json();
     if (res.ok) {
-      const elapsed = ((Date.now()-t0)/1000).toFixed(1);
+      var elapsed = ((Date.now() - t0) / 1000).toFixed(1);
       status.style.color = "var(--success)";
-      status.textContent = `✅ ${data.stats.totalRows.toLocaleString()} rows in ${elapsed}s — High: ${data.stats.high.toLocaleString()}, Med: ${data.stats.medium.toLocaleString()}, Low: ${data.stats.low.toLocaleString()}, Anomalies: ${data.stats.anomalies.toLocaleString()} (${data.performance.rowsPerSec.toLocaleString()} rows/sec)`;
-      toast(`Generated ${data.stats.totalRows.toLocaleString()} records in ${elapsed}s`,"success");
-      setTimeout(async () => { await loadDashboard(); showSection("dashboard", document.getElementById("nav-dashboard")); }, 1500);
+      status.textContent = "✅ " + data.stats.totalRows.toLocaleString() + " rows in " + elapsed + "s" +
+        " — High: " + data.stats.high.toLocaleString() +
+        ", Med: "  + data.stats.medium.toLocaleString() +
+        ", Low: "  + data.stats.low.toLocaleString() +
+        ", Anomalies: " + data.stats.anomalies.toLocaleString() +
+        " (" + data.performance.rowsPerSec.toLocaleString() + " rows/sec)";
+      toast("Generated " + data.stats.totalRows.toLocaleString() + " records in " + elapsed + "s", "success");
+      setTimeout(async function() {
+        await loadDashboard();
+        showSection("dashboard", document.getElementById("nav-dashboard"));
+      }, 1500);
     } else {
       status.style.color = "var(--danger)";
-      status.textContent = "❌ " + (data.error||"Generation failed");
+      status.textContent = "❌ " + (data.error || "Generation failed");
     }
   } catch(e) {
     status.style.color = "var(--danger)";
@@ -654,171 +700,190 @@ async function quickGen(count, fraudRate) {
    HISTORY
 ════════════════════════════════════════ */
 async function loadHistory() {
-  const res  = await api("/upload-history");
+  var res  = await api("/upload-history");
   if (!res.ok) return;
-  const data = await res.json();
-  const tb   = document.getElementById("historyBody");
-  if (!data.length) { tb.innerHTML=""; document.getElementById("historyEmpty").style.display="flex"; return; }
-  document.getElementById("historyEmpty").style.display="none";
-  tb.innerHTML = data.map(h => `
-    <tr>
-      <td class="mono-sm">${h.filename||"—"}</td>
-      <td>${(h.totalRows||0).toLocaleString()}</td>
-      <td style="color:var(--danger)">${(h.highRisk||0).toLocaleString()}</td>
-      <td style="color:var(--warning)">${(h.mediumRisk||0).toLocaleString()}</td>
-      <td style="color:var(--success)">${(h.lowRisk||0).toLocaleString()}</td>
-      <td style="color:var(--warning)">${(h.anomalies||0).toLocaleString()}</td>
-      <td class="mono-sm">${h.uploadedBy||"—"}</td>
-      <td class="mono-sm">${new Date(h.uploadedAt).toLocaleString("en-IN")}</td>
-      <td><button class="btn btn-accent" style="font-size:0.5rem;padding:3px 10px" onclick="loadUploadResults('${h._id}')">LOAD</button></td>
-    </tr>`).join("");
+  var data = await res.json();
+  var tb   = document.getElementById("historyBody");
+  if (!data.length) { tb.innerHTML = ""; document.getElementById("historyEmpty").style.display = "flex"; return; }
+  document.getElementById("historyEmpty").style.display = "none";
+  tb.innerHTML = data.map(function(h) {
+    return "<tr>" +
+      "<td class='mono-sm'>" + (h.filename || "—") + "</td>" +
+      "<td>" + (h.totalRows || 0).toLocaleString() + "</td>" +
+      "<td style='color:var(--danger)'>"  + (h.highRisk   || 0).toLocaleString() + "</td>" +
+      "<td style='color:var(--warning)'>" + (h.mediumRisk || 0).toLocaleString() + "</td>" +
+      "<td style='color:var(--success)'>" + (h.lowRisk    || 0).toLocaleString() + "</td>" +
+      "<td style='color:var(--warning)'>" + (h.anomalies  || 0).toLocaleString() + "</td>" +
+      "<td class='mono-sm'>" + (h.uploadedBy || "—") + "</td>" +
+      "<td class='mono-sm'>" + new Date(h.uploadedAt).toLocaleString("en-IN") + "</td>" +
+      "<td><button class='btn btn-accent' style='font-size:0.5rem;padding:3px 10px' onclick=\"loadUploadResults('" + h._id + "')\">LOAD</button></td>" +
+      "</tr>";
+  }).join("");
 }
 
 async function loadUploadResults(uploadId) {
-  const res = await api(`/results?uploadId=${uploadId}&limit=1000`);
-  if (res.ok) { const d=await res.json(); await loadDashboard(d); showSection("dashboard",document.getElementById("nav-dashboard")); toast("Upload results loaded","info"); }
+  var res = await api("/results?uploadId=" + uploadId + "&limit=1000");
+  if (res.ok) {
+    var d = await res.json();
+    await loadDashboard(d);
+    showSection("dashboard", document.getElementById("nav-dashboard"));
+    toast("Upload results loaded", "info");
+  }
 }
 
 /* ════════════════════════════════════════
    USERS
 ════════════════════════════════════════ */
 async function loadUsers() {
-  const res  = await api("/users");
+  var res  = await api("/users");
   if (!res.ok) return;
-  const data = await res.json();
-  const tb   = document.getElementById("usersBody");
+  var data = await res.json();
+  var tb   = document.getElementById("usersBody");
 
-  const admins  = data.filter(u=>u.role==="admin").length;
-  const analysts = data.filter(u=>u.role==="analyst").length;
-  const locked  = data.filter(u=>u.lockedUntil && new Date(u.lockedUntil)>new Date()).length;
+  var admins   = data.filter(function(u) { return u.role === "admin"; }).length;
+  var analysts = data.filter(function(u) { return u.role === "analyst"; }).length;
+  var locked   = data.filter(function(u) { return u.lockedUntil && new Date(u.lockedUntil) > new Date(); }).length;
 
-  document.getElementById("userStats").innerHTML = `
-    <div class="admin-card cyan"><div class="admin-card-label">TOTAL USERS</div><div class="admin-card-value">${data.length}</div></div>
-    <div class="admin-card green"><div class="admin-card-label">ADMINS</div><div class="admin-card-value">${admins}</div></div>
-    <div class="admin-card orange"><div class="admin-card-label">ANALYSTS</div><div class="admin-card-value">${analysts}</div></div>
-    <div class="admin-card red"><div class="admin-card-label">LOCKED</div><div class="admin-card-value">${locked}</div></div>`;
+  document.getElementById("userStats").innerHTML =
+    "<div class='admin-card cyan'><div class='admin-card-label'>TOTAL USERS</div><div class='admin-card-value'>" + data.length + "</div></div>" +
+    "<div class='admin-card green'><div class='admin-card-label'>ADMINS</div><div class='admin-card-value'>" + admins + "</div></div>" +
+    "<div class='admin-card orange'><div class='admin-card-label'>ANALYSTS</div><div class='admin-card-value'>" + analysts + "</div></div>" +
+    "<div class='admin-card red'><div class='admin-card-label'>LOCKED</div><div class='admin-card-value'>" + locked + "</div></div>";
 
-  if (!data.length) { tb.innerHTML=""; document.getElementById("usersEmpty").style.display="flex"; return; }
-  document.getElementById("usersEmpty").style.display="none";
-  tb.innerHTML = data.map(u => {
-    const isLocked = u.lockedUntil && new Date(u.lockedUntil) > new Date();
-    return `<tr>
-      <td class="mono-sm">${u.email}</td>
-      <td><span class="risk-badge ${u.role==="admin"?"risk-high":"risk-low"}">${u.role.toUpperCase()}</span></td>
-      <td style="text-transform:capitalize">${u.authProvider||"local"}</td>
-      <td class="mono-sm">${u.lastLogin?new Date(u.lastLogin).toLocaleString("en-IN"):"Never"}</td>
-      <td>${isLocked?'<span style="color:var(--danger)">LOCKED</span>':'<span style="color:var(--success)">ACTIVE</span>'}</td>
-      <td>${isLocked?`<button class="btn btn-accent" style="font-size:0.48rem;padding:3px 10px" onclick="unlockUser('${u.email}')">UNLOCK</button>`:"—"}</td>
-    </tr>`;
+  if (!data.length) { tb.innerHTML = ""; document.getElementById("usersEmpty").style.display = "flex"; return; }
+  document.getElementById("usersEmpty").style.display = "none";
+  tb.innerHTML = data.map(function(u) {
+    var isLocked   = u.lockedUntil && new Date(u.lockedUntil) > new Date();
+    var statusHtml = isLocked
+      ? '<span style="color:var(--danger)">LOCKED</span>'
+      : '<span style="color:var(--success)">ACTIVE</span>';
+    var actionHtml = isLocked
+      ? "<button class='btn btn-accent' style='font-size:0.48rem;padding:3px 10px' onclick=\"unlockUser('" + u.email + "')\">UNLOCK</button>"
+      : "—";
+    return "<tr>" +
+      "<td class='mono-sm'>" + u.email + "</td>" +
+      "<td><span class='risk-badge " + (u.role === "admin" ? "risk-high" : "risk-low") + "'>" + u.role.toUpperCase() + "</span></td>" +
+      "<td style='text-transform:capitalize'>" + (u.authProvider || "local") + "</td>" +
+      "<td class='mono-sm'>" + (u.lastLogin ? new Date(u.lastLogin).toLocaleString("en-IN") : "Never") + "</td>" +
+      "<td>" + statusHtml + "</td>" +
+      "<td>" + actionHtml + "</td>" +
+      "</tr>";
   }).join("");
 }
 
-async function unlockUser(email) {
-  const res = await api("/unlock-account", { method:"POST", body:JSON.stringify({email}) });
-  if (res.ok) { toast(`${email} unlocked`,"success"); loadUsers(); }
-  else toast("Failed to unlock","error");
+async function unlockUser(userEmail) {
+  var res = await api("/unlock-account", { method: "POST", body: JSON.stringify({ email: userEmail }) });
+  if (res.ok) { toast(userEmail + " unlocked", "success"); loadUsers(); }
+  else toast("Failed to unlock", "error");
 }
 
 /* ════════════════════════════════════════
    SOC EVENTS
 ════════════════════════════════════════ */
 async function loadSOC() {
-  const sev = document.getElementById("sevFilter").value;
-  const cat = document.getElementById("catFilter").value;
-  let url   = "/security-events?limit=100";
+  var sev = document.getElementById("sevFilter").value;
+  var cat = document.getElementById("catFilter").value;
+  var url = "/security-events?limit=100";
   if (sev) url += "&severity=" + sev;
   if (cat) url += "&category=" + cat;
 
-  const [evRes, stRes] = await Promise.all([api(url), api("/security-stats")]);
+  var results = await Promise.all([api(url), api("/security-stats")]);
+  var evRes   = results[0];
+  var stRes   = results[1];
   if (!evRes.ok) return;
-  const events = await evRes.json();
-  const stats  = stRes.ok ? await stRes.json() : {};
+  var events = await evRes.json();
+  var stats  = stRes.ok ? await stRes.json() : {};
 
-  document.getElementById("socStats").innerHTML = `
-    <div class="admin-card cyan"><div class="admin-card-label">TOTAL EVENTS</div><div class="admin-card-value">${stats.total||0}</div></div>
-    <div class="admin-card red"><div class="admin-card-label">CRITICAL</div><div class="admin-card-value">${stats.critical||0}</div></div>
-    <div class="admin-card orange"><div class="admin-card-label">HIGH</div><div class="admin-card-value">${stats.high||0}</div></div>
-    <div class="admin-card green"><div class="admin-card-label">OPEN</div><div class="admin-card-value">${stats.open||0}</div></div>`;
+  document.getElementById("socStats").innerHTML =
+    "<div class='admin-card cyan'><div class='admin-card-label'>TOTAL EVENTS</div><div class='admin-card-value'>"  + (stats.total    || 0) + "</div></div>" +
+    "<div class='admin-card red'><div class='admin-card-label'>CRITICAL</div><div class='admin-card-value'>"        + (stats.critical  || 0) + "</div></div>" +
+    "<div class='admin-card orange'><div class='admin-card-label'>HIGH</div><div class='admin-card-value'>"         + (stats.high      || 0) + "</div></div>" +
+    "<div class='admin-card green'><div class='admin-card-label'>OPEN</div><div class='admin-card-value'>"          + (stats.open      || 0) + "</div></div>";
 
-  const tb = document.getElementById("socBody");
-  if (!events.length) { tb.innerHTML=""; document.getElementById("socEmpty").style.display="flex"; return; }
-  document.getElementById("socEmpty").style.display="none";
-  tb.innerHTML = events.map(e => `
-    <tr>
-      <td class="mono-sm">${new Date(e.timestamp).toLocaleString("en-IN")}</td>
-      <td><span class="sev-badge sev-${e.severity}">${e.severity}</span></td>
-      <td class="mono-sm">${e.category}</td>
-      <td>${e.title}</td>
-      <td class="mono-sm">${e.actor||"—"}</td>
-      <td class="mono-sm">${e.ip||"—"}</td>
-      <td>
-        <select class="status-select" onchange="updateSOCStatus('${e._id}',this.value)">
-          <option ${e.status==="OPEN"?"selected":""}>OPEN</option>
-          <option ${e.status==="INVESTIGATING"?"selected":""}>INVESTIGATING</option>
-          <option ${e.status==="RESOLVED"?"selected":""}>RESOLVED</option>
-        </select>
-      </td>
-    </tr>`).join("");
+  var tb = document.getElementById("socBody");
+  if (!events.length) { tb.innerHTML = ""; document.getElementById("socEmpty").style.display = "flex"; return; }
+  document.getElementById("socEmpty").style.display = "none";
+  tb.innerHTML = events.map(function(e) {
+    return "<tr>" +
+      "<td class='mono-sm'>" + new Date(e.timestamp).toLocaleString("en-IN") + "</td>" +
+      "<td><span class='sev-badge sev-" + e.severity + "'>" + e.severity + "</span></td>" +
+      "<td class='mono-sm'>" + e.category + "</td>" +
+      "<td>" + e.title + "</td>" +
+      "<td class='mono-sm'>" + (e.actor || "—") + "</td>" +
+      "<td class='mono-sm'>" + (e.ip    || "—") + "</td>" +
+      "<td><select class='status-select' onchange=\"updateSOCStatus('" + e._id + "',this.value)\">" +
+        "<option" + (e.status === "OPEN"          ? " selected" : "") + ">OPEN</option>" +
+        "<option" + (e.status === "INVESTIGATING"  ? " selected" : "") + ">INVESTIGATING</option>" +
+        "<option" + (e.status === "RESOLVED"       ? " selected" : "") + ">RESOLVED</option>" +
+      "</select></td>" +
+      "</tr>";
+  }).join("");
 }
 
 async function updateSOCStatus(id, status) {
-  await api(`/security-events/${id}`, { method:"PATCH", body:JSON.stringify({status}) });
-  toast(`Event status → ${status}`,"info");
+  await api("/security-events/" + id, { method: "PATCH", body: JSON.stringify({ status: status }) });
+  toast("Event status → " + status, "info");
 }
 
 async function loadAudit() {
-  const res  = await api("/audit-trail?limit=50");
+  var res  = await api("/audit-trail?limit=50");
   if (!res.ok) return;
-  const data = await res.json();
-  const tb   = document.getElementById("auditBody");
-  if (!data.length) { tb.innerHTML=""; document.getElementById("auditEmpty").style.display="flex"; return; }
-  document.getElementById("auditEmpty").style.display="none";
-  tb.innerHTML = data.map(a => `
-    <tr>
-      <td class="mono-sm">${new Date(a.timestamp).toLocaleString("en-IN")}</td>
-      <td class="mono-sm">${a.actor||"—"}</td>
-      <td><span class="flag-chip">${a.action||"—"}</span></td>
-      <td class="mono-sm">${a.target||"—"}</td>
-      <td class="mono-sm">${a.ip||"—"}</td>
-    </tr>`).join("");
+  var data = await res.json();
+  var tb   = document.getElementById("auditBody");
+  if (!data.length) { tb.innerHTML = ""; document.getElementById("auditEmpty").style.display = "flex"; return; }
+  document.getElementById("auditEmpty").style.display = "none";
+  tb.innerHTML = data.map(function(a) {
+    return "<tr>" +
+      "<td class='mono-sm'>" + new Date(a.timestamp).toLocaleString("en-IN") + "</td>" +
+      "<td class='mono-sm'>" + (a.actor  || "—") + "</td>" +
+      "<td><span class='flag-chip'>" + (a.action || "—") + "</span></td>" +
+      "<td class='mono-sm'>" + (a.target || "—") + "</td>" +
+      "<td class='mono-sm'>" + (a.ip     || "—") + "</td>" +
+      "</tr>";
+  }).join("");
 }
 
 async function loadIPBlacklist() {
-  const res  = await api("/ip-blacklist");
+  var res  = await api("/ip-blacklist");
   if (!res.ok) return;
-  const data = await res.json();
-  const tb   = document.getElementById("ipBody");
-  if (!data.length) { tb.innerHTML=""; document.getElementById("ipEmpty").style.display="flex"; return; }
-  document.getElementById("ipEmpty").style.display="none";
-  tb.innerHTML = data.map(ip => `
-    <tr>
-      <td class="mono-sm">${ip.ip}</td>
-      <td>${ip.reason||"—"}</td>
-      <td class="mono-sm">${ip.blockedBy||"—"}</td>
-      <td class="mono-sm">${new Date(ip.blockedAt).toLocaleString("en-IN")}</td>
-      <td><button class="btn btn-accent" style="font-size:0.48rem;padding:3px 10px" onclick="unblockIP('${ip.ip}')">UNBLOCK</button></td>
-    </tr>`).join("");
+  var data = await res.json();
+  var tb   = document.getElementById("ipBody");
+  if (!data.length) { tb.innerHTML = ""; document.getElementById("ipEmpty").style.display = "flex"; return; }
+  document.getElementById("ipEmpty").style.display = "none";
+  tb.innerHTML = data.map(function(item) {
+    return "<tr>" +
+      "<td class='mono-sm'>" + item.ip + "</td>" +
+      "<td>" + (item.reason    || "—") + "</td>" +
+      "<td class='mono-sm'>" + (item.blockedBy || "—") + "</td>" +
+      "<td class='mono-sm'>" + new Date(item.blockedAt).toLocaleString("en-IN") + "</td>" +
+      "<td><button class='btn btn-accent' style='font-size:0.48rem;padding:3px 10px' onclick=\"unblockIP('" + item.ip + "')\">UNBLOCK</button></td>" +
+      "</tr>";
+  }).join("");
 }
 
-async function blockIP() {
-  const ip     = document.getElementById("blockIP").value.trim();
-  const reason = document.getElementById("blockReason").value.trim();
-  if (!ip) return toast("Enter an IP address","error");
-  const res = await api("/ip-blacklist", { method:"POST", body:JSON.stringify({ip,reason}) });
-  if (res.ok) { toast(`${ip} blocked`,"success"); document.getElementById("blockIP").value=""; document.getElementById("blockReason").value=""; loadIPBlacklist(); }
-  else toast("Failed to block IP","error");
+async function blockIPAction() {
+  var ip     = document.getElementById("blockIP").value.trim();
+  var reason = document.getElementById("blockReason").value.trim();
+  if (!ip) return toast("Enter an IP address", "error");
+  var res = await api("/ip-blacklist", { method: "POST", body: JSON.stringify({ ip: ip, reason: reason }) });
+  if (res.ok) {
+    toast(ip + " blocked", "success");
+    document.getElementById("blockIP").value     = "";
+    document.getElementById("blockReason").value = "";
+    loadIPBlacklist();
+  } else toast("Failed to block IP", "error");
 }
 
 async function unblockIP(ip) {
-  const res = await api(`/ip-blacklist/${encodeURIComponent(ip)}`, { method:"DELETE" });
-  if (res.ok) { toast(`${ip} unblocked`,"success"); loadIPBlacklist(); }
-  else toast("Failed to unblock","error");
+  var res = await api("/ip-blacklist/" + encodeURIComponent(ip), { method: "DELETE" });
+  if (res.ok) { toast(ip + " unblocked", "success"); loadIPBlacklist(); }
+  else toast("Failed to unblock", "error");
 }
 
 /* ════════════════════════════════════════
    GEO HEATMAP
 ════════════════════════════════════════ */
-const CITY_COORDS = {
+var CITY_COORDS = {
   "Mumbai":[19.0760,72.8777],"Delhi":[28.6139,77.2090],"Bangalore":[12.9716,77.5946],
   "Hyderabad":[17.3850,78.4867],"Chennai":[13.0827,80.2707],"Kolkata":[22.5726,88.3639],
   "Pune":[18.5204,73.8567],"Ahmedabad":[23.0225,72.5714],"Jaipur":[26.9124,75.7873],
@@ -831,91 +896,108 @@ const CITY_COORDS = {
   "Srinagar":[34.0837,74.7973],"Aurangabad":[19.8762,75.3433],"Dhanbad":[23.7957,86.4304],
   "Amritsar":[31.6340,74.8723],"Allahabad":[25.4358,81.8463],"Ranchi":[23.3441,85.3096],
   "Howrah":[22.5958,88.2636],"Coimbatore":[11.0168,76.9558],"Jabalpur":[23.1815,79.9864],
-  "Gwalior":[26.2183,78.1828],"Vijayawada":[16.5062,80.6480],"Jodhpur":[26.2389,73.0243],"Madurai":[9.9252,78.1198]
+  "Gwalior":[26.2183,78.1828],"Vijayawada":[16.5062,80.6480],"Jodhpur":[26.2389,73.0243],
+  "Madurai":[9.9252,78.1198],"Noida":[28.5355,77.3910],"Gurugram":[28.4595,77.0266],
+  "Chandigarh":[30.7333,76.7794],"Guwahati":[26.1445,91.7362],"Raipur":[21.2514,81.6296],
+  "Kota":[25.2138,75.8648],"Mysuru":[12.2958,76.6394]
 };
 
-let geoMapInit = false;
-
 async function loadGeoMap() {
-  const res  = await api("/geo-stats");
+  var res  = await api("/geo-stats");
   if (!res.ok) return;
-  const data = await res.json();
+  var data = await res.json();
 
   if (!geoMapInit) {
-    geoMap = L.map("geoMap", { center:[20.5937,78.9629], zoom:5 });
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{attribution:'&copy; CartoDB',maxZoom:18}).addTo(geoMap);
+    geoMap = L.map("geoMap", { center: [20.5937, 78.9629], zoom: 5 });
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      { attribution: "&copy; CartoDB", maxZoom: 18 }).addTo(geoMap);
     geoMapInit = true;
   }
 
   if (heatLayer) geoMap.removeLayer(heatLayer);
 
-  const heatData = [];
-  const tb = document.getElementById("geoTableBody");
+  var heatData = [];
+  var tb = document.getElementById("geoTableBody");
 
-  if (!data.length) { document.getElementById("geoEmpty").style.display="flex"; tb.innerHTML=""; return; }
-  document.getElementById("geoEmpty").style.display="none";
+  if (!data.length) {
+    document.getElementById("geoEmpty").style.display = "flex";
+    tb.innerHTML = "";
+    return;
+  }
+  document.getElementById("geoEmpty").style.display = "none";
 
-  data.forEach(city => {
-    const coords = CITY_COORDS[city._id];
+  data.forEach(function(city) {
+    var coords = CITY_COORDS[city._id];
     if (!coords) return;
-    const intensity = city.total > 0 ? city.high / city.total : 0;
+    var intensity = city.total > 0 ? city.high / city.total : 0;
     heatData.push([coords[0], coords[1], intensity + 0.1]);
 
-    const popup = `<div style="font-family:monospace;font-size:11px;color:#00ffc8;background:#020d0a;padding:10px;border:1px solid #0a3a28">
-      <b>${city._id}</b><br>
-      Total: ${city.total} | High: <span style="color:#ff2d6b">${city.high}</span><br>
-      Fraud Rate: ${city.total>0?((city.high/city.total)*100).toFixed(1):0}%<br>
-      Avg Score: ${(city.avgScore||0).toFixed(0)} | Anomalies: ${city.anomalies}
-    </div>`;
+    var popup = "<div style='font-family:monospace;font-size:11px;color:#00ffc8;background:#020d0a;padding:10px;border:1px solid #0a3a28'>" +
+      "<b>" + city._id + "</b><br>" +
+      "Total: " + city.total + " | High: <span style='color:#ff2d6b'>" + city.high + "</span><br>" +
+      "Fraud Rate: " + (city.total > 0 ? ((city.high / city.total) * 100).toFixed(1) : 0) + "%<br>" +
+      "Avg Score: " + (city.avgScore || 0).toFixed(0) + " | Anomalies: " + city.anomalies +
+      "</div>";
 
-    L.circleMarker(coords, { radius:6, color:"#00ffc8", fillColor:"#00ffc8", fillOpacity:0.6, weight:1 })
+    L.circleMarker(coords, { radius: 6, color: "#00ffc8", fillColor: "#00ffc8", fillOpacity: 0.6, weight: 1 })
       .bindPopup(popup).addTo(geoMap);
   });
 
-  heatLayer = L.heatLayer(heatData, { radius:30, blur:20, maxZoom:8, gradient:{0.2:"#00ffc8",0.5:"#ffaa00",1.0:"#ff2d6b"} }).addTo(geoMap);
+  heatLayer = L.heatLayer(heatData, {
+    radius: 30, blur: 20, maxZoom: 8,
+    gradient: { 0.2: "#00ffc8", 0.5: "#ffaa00", 1.0: "#ff2d6b" }
+  }).addTo(geoMap);
 
-  const sorted = [...data].sort((a,b)=>b.total-a.total);
-  tb.innerHTML = sorted.map(c => `
-    <tr>
-      <td>${c._id}</td>
-      <td>${(c.total||0).toLocaleString()}</td>
-      <td style="color:var(--danger)">${(c.high||0).toLocaleString()}</td>
-      <td style="color:var(--warning)">${(c.medium||0).toLocaleString()}</td>
-      <td style="color:var(--success)">${(c.low||0).toLocaleString()}</td>
-      <td style="color:var(--warning)">${(c.anomalies||0).toLocaleString()}</td>
-      <td>${c.total>0?((c.high/c.total)*100).toFixed(1):0}%</td>
-      <td>${(c.avgScore||0).toFixed(0)}</td>
-    </tr>`).join("");
+  // Invalidate map size after it becomes visible
+  setTimeout(function() { geoMap.invalidateSize(); }, 100);
+
+  var sorted = data.slice().sort(function(a, b) { return b.total - a.total; });
+  tb.innerHTML = sorted.map(function(c) {
+    return "<tr>" +
+      "<td>" + c._id + "</td>" +
+      "<td>" + (c.total  || 0).toLocaleString() + "</td>" +
+      "<td style='color:var(--danger)'>"  + (c.high    || 0).toLocaleString() + "</td>" +
+      "<td style='color:var(--warning)'>" + (c.medium  || 0).toLocaleString() + "</td>" +
+      "<td style='color:var(--success)'>" + (c.low     || 0).toLocaleString() + "</td>" +
+      "<td style='color:var(--warning)'>" + (c.anomalies || 0).toLocaleString() + "</td>" +
+      "<td>" + (c.total > 0 ? ((c.high / c.total) * 100).toFixed(1) : 0) + "%</td>" +
+      "<td>" + (c.avgScore || 0).toFixed(0) + "</td>" +
+      "</tr>";
+  }).join("");
 }
 
 /* ════════════════════════════════════════
    ACCOUNT / TOTP
 ════════════════════════════════════════ */
 async function loadTOTPStatus() {
-  const res  = await fetch(`/totp-status?email=${encodeURIComponent(email)}`);
+  var res  = await fetch("/totp-status?email=" + encodeURIComponent(email));
   if (!res.ok) return;
-  const data = await res.json();
-  const el   = document.getElementById("totpStatusText");
-  const btn  = document.getElementById("disableTotpBtn");
+  var data = await res.json();
+  var el   = document.getElementById("totpStatusText");
+  var btn  = document.getElementById("disableTotpBtn");
   if (data.totpEnabled) {
     el.textContent = "ENABLED ✓"; el.className = "totp-on"; btn.style.display = "inline-block";
   } else {
-    el.textContent = "DISABLED"; el.className = "totp-off"; btn.style.display = "none";
+    el.textContent = "DISABLED";  el.className = "totp-off"; btn.style.display = "none";
   }
 }
 
 async function disableTOTP() {
   if (!confirm("Disable Google Authenticator? Your account will be less secure.")) return;
-  const res = await fetch("/disable-totp", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email}) });
-  if (res.ok) { toast("Authenticator disabled","info"); loadTOTPStatus(); }
-  else toast("Failed to disable","error");
+  var res = await fetch("/disable-totp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: email })
+  });
+  if (res.ok) { toast("Authenticator disabled", "info"); loadTOTPStatus(); }
+  else toast("Failed to disable", "error");
 }
 
 /* ════════════════════════════════════════
    LOGOUT
 ════════════════════════════════════════ */
 async function doLogout() {
-  await fetch("/logout", { method:"POST", headers:{"Authorization":"Bearer "+token} });
+  await fetch("/logout", { method: "POST", headers: { "Authorization": "Bearer " + token } });
   localStorage.clear();
   window.location.href = "/login.html";
 }
@@ -924,7 +1006,7 @@ async function doLogout() {
    THEME TOGGLE
 ════════════════════════════════════════ */
 function toggleTheme() {
-  const isDark = document.documentElement.getAttribute("data-theme") !== "light";
+  var isDark = document.documentElement.getAttribute("data-theme") !== "light";
   document.documentElement.setAttribute("data-theme", isDark ? "light" : "dark");
   document.getElementById("themeLabel").textContent = isDark ? "LIGHT MODE" : "DARK MODE";
 }
@@ -935,45 +1017,51 @@ function toggleTheme() {
 function toggleAI() { document.getElementById("aiPanel").classList.toggle("open"); }
 
 async function sendAI() {
-  const input = document.getElementById("aiInput");
-  const msg   = input.value.trim();
+  var input = document.getElementById("aiInput");
+  var msg   = input.value.trim();
   if (!msg) return;
   input.value = "";
 
-  const msgs = document.getElementById("aiMessages");
-  msgs.innerHTML += `<div class="ai-msg user">${msg}</div>`;
+  var msgs = document.getElementById("aiMessages");
+  msgs.innerHTML += "<div class='ai-msg user'>" + msg + "</div>";
 
-  const high  = allResults.filter(r=>r.risk==="High").length;
-  const med   = allResults.filter(r=>r.risk==="Medium").length;
-  const low   = allResults.filter(r=>r.risk==="Low").length;
-  const anom  = allResults.filter(r=>r.anomaly?.isAnomaly).length;
-  const flags = [...new Set(allResults.flatMap(r=>r.flags||[]))].slice(0,8).join(", ");
+  var high  = allResults.filter(function(r) { return r.risk === "High"; }).length;
+  var med   = allResults.filter(function(r) { return r.risk === "Medium"; }).length;
+  var low   = allResults.filter(function(r) { return r.risk === "Low"; }).length;
+  var anom  = allResults.filter(function(r) { return r.anomaly && r.anomaly.isAnomaly; }).length;
+  var flags = [];
+  allResults.forEach(function(r) { (r.flags || []).forEach(function(f) { if (flags.indexOf(f) === -1) flags.push(f); }); });
+  flags = flags.slice(0, 8).join(", ");
 
-  const systemCtx = `You are a SOC AI assistant for FraudSys, an insurance fraud detection platform. Current live dashboard data: Total records: ${allResults.length}, High risk: ${high}, Medium risk: ${med}, Low risk: ${low}, Anomalies: ${anom}, Top fraud flags: ${flags||"none"}. Be concise, professional, and cybersecurity-focused.`;
+  var systemCtx = "You are a SOC AI assistant for FraudSys, an insurance fraud detection platform. " +
+    "Current live dashboard data: Total records: " + allResults.length +
+    ", High risk: " + high + ", Medium risk: " + med + ", Low risk: " + low +
+    ", Anomalies: " + anom + ", Top fraud flags: " + (flags || "none") +
+    ". Be concise, professional, and cybersecurity-focused.";
 
-  aiHistory.push({ role:"user", content: msg });
+  aiHistory.push({ role: "user", content: msg });
   if (aiHistory.length > 20) aiHistory = aiHistory.slice(-20);
 
-  const thinking = document.createElement("div");
-  thinking.className = "ai-msg bot";
+  var thinking = document.createElement("div");
+  thinking.className   = "ai-msg bot";
   thinking.textContent = "Analyzing...";
   msgs.appendChild(thinking);
   msgs.scrollTop = msgs.scrollHeight;
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
+    var res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model:      "claude-sonnet-4-20250514",
         max_tokens: 1000,
-        system: systemCtx,
-        messages: aiHistory
+        system:     systemCtx,
+        messages:   aiHistory
       })
     });
-    const data = await res.json();
-    const reply = data.content?.[0]?.text || "Unable to get response.";
-    aiHistory.push({ role:"assistant", content: reply });
+    var data  = await res.json();
+    var reply = (data.content && data.content[0] && data.content[0].text) || "Unable to get response.";
+    aiHistory.push({ role: "assistant", content: reply });
     thinking.textContent = reply;
   } catch(e) {
     thinking.textContent = "Network error — check API connection.";
