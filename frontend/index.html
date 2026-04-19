@@ -27,12 +27,12 @@
   </div>
   <nav>
     <div class="nav-item active" id="nav-dashboard" onclick="showSection('dashboard',this)"><span class="nav-icon">◈</span> DASHBOARD</div>
-    <div class="nav-item admin-nav" id="nav-upload"   onclick="showSection('upload',this)"><span class="nav-icon">⬆</span> UPLOAD DATA</div>
-    <div class="nav-item"           id="nav-history"  onclick="showSection('history',this)"><span class="nav-icon">☰</span> UPLOAD HISTORY</div>
-    <div class="nav-item admin-nav" id="nav-users"    onclick="showSection('users',this)"><span class="nav-icon">◉</span> USERS</div>
-    <div class="nav-item admin-nav" id="nav-soc"      onclick="showSection('soc',this)"><span class="nav-icon">△</span> SOC EVENTS</div>
-    <div class="nav-item"           id="nav-geo"      onclick="showSection('geo',this)"><span class="nav-icon">◎</span> GEO HEATMAP</div>
-    <div class="nav-item"           id="nav-account"  onclick="showSection('account',this)"><span class="nav-icon">⊙</span> ACCOUNT</div>
+    <div class="nav-item admin-nav"  id="nav-upload"   onclick="showSection('upload',this)"><span class="nav-icon">⬆</span> UPLOAD DATA</div>
+    <div class="nav-item"            id="nav-history"  onclick="showSection('history',this)"><span class="nav-icon">☰</span> UPLOAD HISTORY</div>
+    <div class="nav-item admin-nav"  id="nav-users"    onclick="showSection('users',this)"><span class="nav-icon">◉</span> USERS</div>
+    <div class="nav-item admin-nav"  id="nav-soc"      onclick="showSection('soc',this)"><span class="nav-icon">△</span> SOC EVENTS</div>
+    <div class="nav-item"            id="nav-geo"      onclick="showSection('geo',this)"><span class="nav-icon">◎</span> GEO HEATMAP</div>
+    <div class="nav-item"            id="nav-account"  onclick="showSection('account',this)"><span class="nav-icon">⊙</span> ACCOUNT</div>
     <div class="nav-item danger" onclick="doLogout()"><span class="nav-icon">⏻</span> LOGOUT</div>
   </nav>
   <div class="sidebar-footer">
@@ -64,11 +64,11 @@
     <!-- ─── DASHBOARD ─── -->
     <div id="section-dashboard">
       <div class="cards">
-        <div class="card">            <div class="card-label">TOTAL CASES</div>  <div class="card-value" id="statTotal">0</div></div>
-        <div class="card">            <div class="card-label">LOW RISK</div>     <div class="card-value" id="statLow">0</div></div>
-        <div class="card warn-card">  <div class="card-label">MEDIUM RISK</div> <div class="card-value" id="statMed">0</div></div>
-        <div class="card danger-card"><div class="card-label">HIGH RISK</div>   <div class="card-value" id="statHigh">0</div></div>
-        <div class="card warn-card">  <div class="card-label">ANOMALIES</div>   <div class="card-value" id="statAnom">0</div></div>
+        <div class="card">            <div class="card-label">TOTAL CASES</div>   <div class="card-value" id="statTotal">0</div></div>
+        <div class="card">            <div class="card-label">LOW RISK</div>      <div class="card-value" id="statLow">0</div></div>
+        <div class="card warn-card">  <div class="card-label">MEDIUM RISK</div>  <div class="card-value" id="statMed">0</div></div>
+        <div class="card danger-card"><div class="card-label">HIGH RISK</div>    <div class="card-value" id="statHigh">0</div></div>
+        <div class="card warn-card">  <div class="card-label">ANOMALIES</div>    <div class="card-value" id="statAnom">0</div></div>
         <div class="card">            <div class="card-label">AVG CONFIDENCE</div><div class="card-value" id="statConf">0%</div></div>
       </div>
 
@@ -78,7 +78,6 @@
         <div class="chart-panel"><div class="panel-title">CONFIDENCE SCORES</div><canvas id="barChart" height="150"></canvas></div>
       </div>
 
-      <!-- Table -->
       <div class="table-panel" id="caseTablePanel">
         <div class="table-header">
           <span class="table-title">CASE RECORDS</span>
@@ -105,9 +104,8 @@
         </div>
         <div id="tableEmpty" class="empty-state" style="display:none">
           <div class="empty-icon">◈</div>
-          <div class="empty-text">// NO DATA — UPLOAD CSV OR GENERATE DATA</div>
+          <div class="empty-text">// NO DATA — UPLOAD A CSV FILE</div>
         </div>
-        <!-- Pagination bar -->
         <div id="pagerBar" style="display:none;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--border);flex-wrap:wrap">
           <button id="prevBtn" onclick="changePage(-1)" class="topbar-btn">← PREV</button>
           <span id="pagerInfo" style="font-family:'Share Tech Mono',monospace;font-size:0.56rem;color:var(--muted)"></span>
@@ -119,45 +117,23 @@
 
     <!-- ─── UPLOAD ─── -->
     <div id="section-upload" style="display:none">
-
-      <!-- Quick Generate Panel -->
-      <div class="section-panel" style="margin-bottom:16px">
-        <div class="section-header"><span class="section-title">⚡ QUICK GENERATE — SERVER-SIDE, NO FILE NEEDED</span></div>
-        <div class="section-body">
-          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
-            <button class="btn btn-success" onclick="quickGen(10000,30)">10K ROWS — 30% FRAUD</button>
-            <button class="btn btn-warn"    onclick="quickGen(50000,40)">50K ROWS — 40% FRAUD</button>
-            <button class="btn btn-danger"  onclick="quickGen(100000,35)">100K ROWS — 35% FRAUD</button>
-          </div>
-          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-            <span style="font-family:'Share Tech Mono',monospace;font-size:0.54rem;color:var(--muted)">CUSTOM:</span>
-            <input type="number" id="customCount" value="25000" min="100" max="200000" class="input-field" style="width:110px" placeholder="Row count">
-            <span style="font-family:'Share Tech Mono',monospace;font-size:0.54rem;color:var(--muted)">FRAUD %:</span>
-            <input type="number" id="customFraud" value="30"    min="0"   max="100"    class="input-field" style="width:70px"  placeholder="%">
-            <button class="btn btn-accent" onclick="quickGen(parseInt(document.getElementById('customCount').value)||25000,parseInt(document.getElementById('customFraud').value)||30)">GENERATE</button>
-          </div>
-          <div id="genStatus" style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--accent);margin-top:10px;min-height:20px"></div>
-        </div>
-      </div>
-
-      <!-- CSV Upload Panel -->
       <div class="section-panel">
         <div class="section-header"><span class="section-title">CSV FILE UPLOAD</span></div>
         <div class="section-body">
-          <p style="font-family:'Share Tech Mono',monospace;font-size:0.52rem;color:var(--muted);margin-bottom:16px;line-height:1.7">
+          <p style="font-family:'Share Tech Mono',monospace;font-size:0.52rem;color:var(--muted);margin-bottom:16px;line-height:1.8">
             Required columns: <span style="color:var(--accent)">amount, claims</span><br>
             Optional: age, policy_duration, incident_type, witnesses, police_report, premium_amount, vehicle_age, location
           </p>
-          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
             <label class="btn btn-accent" style="cursor:pointer">
-              SELECT CSV
+              SELECT CSV FILE
               <input type="file" id="csvFile" accept=".csv" style="display:none" onchange="document.getElementById('fileName').textContent=this.files[0]?.name||'No file selected'">
             </label>
             <span id="fileName" style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--muted)">No file selected</span>
           </div>
           <button class="btn btn-accent" onclick="uploadCSV()" id="uploadBtn">⬆ UPLOAD & ANALYZE</button>
-          <div id="uploadStatus" style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;margin-top:12px;min-height:20px"></div>
-          <div id="uploadProgress" style="display:none;margin-top:10px">
+          <div id="uploadStatus" style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;margin-top:14px;min-height:20px"></div>
+          <div id="uploadProgress" style="display:none;margin-top:12px">
             <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
             <div class="progress-text" id="progressText">Processing...</div>
           </div>
@@ -245,7 +221,7 @@
           <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
             <input type="text" id="blockIP"     placeholder="IP address" class="input-field" style="width:160px">
             <input type="text" id="blockReason" placeholder="Reason"     class="input-field" style="flex:1;min-width:150px">
-            <button class="btn btn-danger" onclick="blockIP()" style="font-size:0.52rem">BLOCK IP</button>
+            <button class="btn btn-danger" onclick="blockIPFn()" style="font-size:0.52rem">BLOCK IP</button>
           </div>
           <table>
             <thead><tr><th>IP</th><th>REASON</th><th>BLOCKED BY</th><th>DATE</th><th>ACTION</th></tr></thead>
@@ -277,7 +253,7 @@
             <thead><tr><th>CITY</th><th>TOTAL</th><th>HIGH</th><th>MEDIUM</th><th>LOW</th><th>ANOMALIES</th><th>FRAUD RATE</th><th>AVG SCORE</th></tr></thead>
             <tbody id="geoTableBody"></tbody>
           </table>
-          <div id="geoEmpty" class="empty-state" style="display:none"><div class="empty-icon">◎</div><div class="empty-text">// NO GEO DATA — CSV NEEDS LOCATION COLUMN</div></div>
+          <div id="geoEmpty" class="empty-state" style="display:none"><div class="empty-icon">◎</div><div class="empty-text">// UPLOAD CSV WITH LOCATION COLUMN</div></div>
         </div>
       </div>
     </div>
@@ -301,10 +277,10 @@
       </div>
     </div>
 
-  </div><!-- end .content -->
-</div><!-- end .main -->
+  </div>
+</div>
 
-<!-- AI Assistant -->
+<!-- ════ AI ASSISTANT ════ -->
 <button class="ai-fab" onclick="toggleAI()" title="SOC AI Assistant">⬡</button>
 <div class="ai-panel" id="aiPanel">
   <div class="ai-header">
@@ -312,10 +288,10 @@
     <button class="ai-close" onclick="toggleAI()">✕</button>
   </div>
   <div class="ai-messages" id="aiMessages">
-    <div class="ai-msg bot">System online. I have access to your live dashboard data. Ask me anything about fraud patterns.</div>
+    <div class="ai-msg bot">System online. I have access to your live dashboard data. Ask me anything about fraud patterns, anomalies, or threat levels.</div>
   </div>
   <div class="ai-input-row">
-    <input class="ai-input" id="aiInput" placeholder="Ask about fraud patterns..." onkeydown="if(event.key==='Enter')sendAI()">
+    <input class="ai-input" id="aiInput" placeholder="Ask about fraud patterns..." onkeydown="if(event.key==='Enter'&&!event.shiftKey)sendAI()">
     <button class="ai-send" onclick="sendAI()">▶</button>
   </div>
 </div>
@@ -336,10 +312,10 @@ let allResults   = [];
 let filteredRows = [];
 let currentPage  = 1;
 const PAGE_SIZE  = 100;
-
 let lineChart, doughnutChart, barChart;
 let geoMap, heatLayer, geoMapInit = false;
 let aiHistory = [];
+let aiThinking = false;
 
 document.getElementById("roleBadge").textContent = "ROLE: " + role.toUpperCase();
 document.getElementById("accEmail").textContent  = email;
@@ -353,18 +329,18 @@ setInterval(() => { document.getElementById("clock").textContent = new Date().to
    NAVIGATION
 ════════════════════════════════════════ */
 const SECTIONS = ["dashboard","upload","history","users","soc","geo","account"];
-const TITLES   = {
-  dashboard: ["THREAT DASHBOARD",    "// REAL-TIME FRAUD ANALYSIS ENGINE"],
-  upload:    ["UPLOAD DATA",         "// CSV UPLOAD & SYNTHETIC GENERATION"],
-  history:   ["UPLOAD HISTORY",      "// HISTORICAL DATASET LOG"],
-  users:     ["USER MANAGEMENT",     "// REGISTERED ACCOUNTS"],
-  soc:       ["SOC EVENTS",          "// SECURITY OPERATIONS CENTER"],
-  geo:       ["GEO FRAUD HEATMAP",   "// INDIA FRAUD DENSITY MAP"],
-  account:   ["ACCOUNT SETTINGS",    "// PROFILE & SECURITY"]
+const TITLES = {
+  dashboard:["THREAT DASHBOARD","// REAL-TIME FRAUD ANALYSIS ENGINE"],
+  upload:   ["UPLOAD DATA","// CSV UPLOAD & ML ANALYSIS"],
+  history:  ["UPLOAD HISTORY","// HISTORICAL DATASET LOG"],
+  users:    ["USER MANAGEMENT","// REGISTERED ACCOUNTS"],
+  soc:      ["SOC EVENTS","// SECURITY OPERATIONS CENTER"],
+  geo:      ["GEO FRAUD HEATMAP","// INDIA FRAUD DENSITY MAP"],
+  account:  ["ACCOUNT SETTINGS","// PROFILE & SECURITY"]
 };
 
 function showSection(id, el) {
-  SECTIONS.forEach(s => document.getElementById("section-"+s).style.display = s===id ? "block" : "none");
+  SECTIONS.forEach(s => document.getElementById("section-"+s).style.display = s===id?"block":"none");
   document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
   if (el) el.classList.add("active");
   const t = TITLES[id]||[id.toUpperCase(),""];
@@ -403,12 +379,12 @@ function toast(msg, type="info") {
 ════════════════════════════════════════ */
 async function api(url, opts={}) {
   const res = await fetch(url, { headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"}, ...opts });
-  if (res.status===401) { localStorage.clear(); window.location.href="/login.html"; }
+  if (res.status === 401) { localStorage.clear(); window.location.href="/login.html"; }
   return res;
 }
 
 /* ════════════════════════════════════════
-   DASHBOARD LOAD
+   DASHBOARD
 ════════════════════════════════════════ */
 async function loadDashboard(data) {
   if (!data) {
@@ -426,7 +402,7 @@ async function loadDashboard(data) {
 async function refreshData() {
   toast("Refreshing...","info");
   await loadDashboard();
-  toast("Dashboard refreshed","success");
+  toast("Refreshed","success");
 }
 
 async function loadAll() {
@@ -434,11 +410,8 @@ async function loadAll() {
   const res = await api("/results?limit=200000");
   if (!res.ok) return toast("Failed to load","error");
   const d = await res.json();
-  allResults  = d;
-  currentPage = 1;
-  updateStats(d);
-  renderCharts(d);
-  renderTable();
+  allResults = d; currentPage = 1;
+  updateStats(d); renderCharts(d); renderTable();
   toast(`Loaded ${d.length.toLocaleString()} records`,"success");
 }
 
@@ -451,11 +424,11 @@ function updateStats(data) {
   const low  = data.filter(r=>r.risk==="Low").length;
   const anom = data.filter(r=>r.anomaly?.isAnomaly).length;
   const conf = data.length ? (data.reduce((s,r)=>s+(r.confidence||0),0)/data.length*100).toFixed(0) : 0;
-  animCount("statTotal", data.length);
-  animCount("statLow",   low);
-  animCount("statMed",   med);
-  animCount("statHigh",  high);
-  animCount("statAnom",  anom);
+  animCount("statTotal",data.length);
+  animCount("statLow",low);
+  animCount("statMed",med);
+  animCount("statHigh",high);
+  animCount("statAnom",anom);
   document.getElementById("statConf").textContent = conf+"%";
 }
 
@@ -470,13 +443,11 @@ function animCount(id, target) {
 function renderTable() {
   const filter = document.getElementById("riskFilter").value;
   filteredRows = filter ? allResults.filter(r=>r.risk===filter) : allResults;
-
   const total      = filteredRows.length;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(total/PAGE_SIZE));
   currentPage      = Math.min(currentPage, totalPages);
-
-  const start = (currentPage-1) * PAGE_SIZE;
-  const slice = filteredRows.slice(start, start + PAGE_SIZE);
+  const start = (currentPage-1)*PAGE_SIZE;
+  const slice = filteredRows.slice(start, start+PAGE_SIZE);
 
   const tb    = document.getElementById("tableBody");
   const empty = document.getElementById("tableEmpty");
@@ -485,9 +456,7 @@ function renderTable() {
   document.getElementById("tableCount").textContent =
     `${total.toLocaleString()} records | Page ${currentPage}/${totalPages}`;
 
-  if (!total) {
-    tb.innerHTML=""; empty.style.display="flex"; pager.style.display="none"; return;
-  }
+  if (!total) { tb.innerHTML=""; empty.style.display="flex"; pager.style.display="none"; return; }
   empty.style.display="none";
 
   tb.innerHTML = slice.map((r,i) => `
@@ -510,8 +479,7 @@ function renderTable() {
       <td class="mono-sm">${r.location||"—"}</td>
     </tr>`).join("");
 
-  /* Pagination bar */
-  if (totalPages <= 1) { pager.style.display="none"; return; }
+  if (totalPages<=1) { pager.style.display="none"; return; }
   pager.style.display="flex";
   document.getElementById("prevBtn").disabled = currentPage<=1;
   document.getElementById("nextBtn").disabled = currentPage>=totalPages;
@@ -525,7 +493,6 @@ function changePage(dir) {
   renderTable();
   document.getElementById("caseTablePanel").scrollIntoView({behavior:"smooth"});
 }
-
 function filterTable() { currentPage=1; renderTable(); }
 
 /* ════════════════════════════════════════
@@ -534,16 +501,14 @@ function filterTable() { currentPage=1; renderTable(); }
 const C = { accent:"#00ffc8",danger:"#ff2d6b",warning:"#ffaa00",muted:"rgba(74,122,112,0.3)",text:"#4a7a70" };
 
 function renderCharts(data) {
-  const sample  = data.slice(0,60);
-  const amounts = sample.map(r=>r.amount||0);
-
-  if (lineChart)    lineChart.destroy();
+  if (lineChart)     lineChart.destroy();
   if (doughnutChart) doughnutChart.destroy();
-  if (barChart)     barChart.destroy();
+  if (barChart)      barChart.destroy();
 
+  const sample = data.slice(0,60);
   lineChart = new Chart(document.getElementById("lineChart"),{
     type:"line",
-    data:{labels:sample.map((_,i)=>"C"+(i+1)),datasets:[{label:"Claim Amount",data:amounts,borderColor:C.accent,backgroundColor:"rgba(0,255,200,0.05)",borderWidth:1.5,pointBackgroundColor:C.accent,pointRadius:2,tension:0.3}]},
+    data:{labels:sample.map((_,i)=>"C"+(i+1)),datasets:[{label:"Claim Amount",data:sample.map(r=>r.amount||0),borderColor:C.accent,backgroundColor:"rgba(0,255,200,0.05)",borderWidth:1.5,pointBackgroundColor:C.accent,pointRadius:2,tension:0.3}]},
     options:{responsive:true,plugins:{legend:{labels:{color:C.text,font:{size:10}}}},scales:{x:{ticks:{color:C.text,font:{size:9},maxTicksLimit:10},grid:{color:C.muted}},y:{ticks:{color:C.text,font:{size:9},callback:v=>"₹"+(v>=100000?(v/100000).toFixed(0)+"L":v.toLocaleString())},grid:{color:C.muted}}}}
   });
 
@@ -578,8 +543,8 @@ async function uploadCSV() {
   const btn        = document.getElementById("uploadBtn");
 
   btn.disabled = true;
-  statusEl.style.color   = "var(--accent)";
-  statusEl.textContent   = "Uploading...";
+  statusEl.style.color = "var(--accent)";
+  statusEl.textContent = "Uploading...";
   progressEl.style.display = "block";
   fillEl.style.width = "20%";
 
@@ -588,8 +553,8 @@ async function uploadCSV() {
   form.append("uploadedBy", email);
 
   try {
-    fillEl.style.width = "50%";
-    textEl.textContent = "Processing ML scoring...";
+    fillEl.style.width = "55%";
+    textEl.textContent = "Running ML scoring...";
     const res  = await fetch("/upload",{method:"POST",headers:{"Authorization":"Bearer "+token},body:form});
     const data = await res.json();
     fillEl.style.width = "100%";
@@ -599,7 +564,7 @@ async function uploadCSV() {
       statusEl.textContent     = `✅ Upload complete — ${data.length.toLocaleString()} rows analyzed`;
       toast(`Upload complete — ${data.length.toLocaleString()} rows`,"success");
       await loadDashboard(data);
-      showSection("dashboard", document.getElementById("nav-dashboard"));
+      showSection("dashboard",document.getElementById("nav-dashboard"));
     } else {
       textEl.textContent   = "❌ " + (data.error||"Upload failed");
       statusEl.style.color = "var(--danger)";
@@ -609,35 +574,12 @@ async function uploadCSV() {
   } catch(e) {
     textEl.textContent   = "❌ Network error";
     statusEl.style.color = "var(--danger)";
-    statusEl.textContent = "Network error";
+    statusEl.textContent = "Network error — check connection";
     toast("Network error","error");
   } finally {
     btn.disabled = false;
     setTimeout(()=>{ progressEl.style.display="none"; fillEl.style.width="0%"; },4000);
   }
-}
-
-/* ════════════════════════════════════════
-   QUICK GENERATE
-════════════════════════════════════════ */
-async function quickGen(count, fraudRate) {
-  const st = document.getElementById("genStatus");
-  st.style.color = "var(--accent)";
-  st.textContent = `⏳ Generating ${count.toLocaleString()} rows at ${fraudRate}% fraud rate...`;
-  const t0 = Date.now();
-  try {
-    const res  = await fetch("/generate-data",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify({count,fraudRate,uploadedBy:email})});
-    const data = await res.json();
-    if (res.ok) {
-      const sec = ((Date.now()-t0)/1000).toFixed(1);
-      st.style.color = "var(--success)";
-      st.textContent = `✅ ${data.stats.totalRows.toLocaleString()} rows in ${sec}s — High: ${data.stats.high.toLocaleString()}, Med: ${data.stats.medium.toLocaleString()}, Low: ${data.stats.low.toLocaleString()}, Anomalies: ${data.stats.anomalies.toLocaleString()} (${data.performance.rowsPerSec.toLocaleString()} rows/sec)`;
-      toast(`Generated ${data.stats.totalRows.toLocaleString()} records`,"success");
-      setTimeout(async()=>{ await loadDashboard(); showSection("dashboard",document.getElementById("nav-dashboard")); },1500);
-    } else {
-      st.style.color="var(--danger)"; st.textContent="❌ "+(data.error||"Failed");
-    }
-  } catch(e) { st.style.color="var(--danger)"; st.textContent="❌ Network error"; }
 }
 
 /* ════════════════════════════════════════
@@ -660,22 +602,19 @@ async function loadHistory() {
       <td style="color:var(--warning)">${(h.anomalies||0).toLocaleString()}</td>
       <td class="mono-sm">${h.uploadedBy||"—"}</td>
       <td class="mono-sm">${new Date(h.uploadedAt).toLocaleString("en-IN")}</td>
-      <td><button class="btn btn-accent" style="font-size:0.5rem;padding:3px 10px" onclick="loadUploadResults('${h._id}','${h.filename||""}')">LOAD</button></td>
+      <td><button class="btn btn-accent" style="font-size:0.5rem;padding:3px 10px" onclick="loadUploadResults('${h._id}','${(h.filename||"upload").replace(/'/g,"\\'")}')">LOAD</button></td>
     </tr>`).join("");
 }
 
 async function loadUploadResults(uploadId, filename) {
-  toast(`Loading ${filename||"upload"}...`,"info");
+  toast(`Loading ${filename}...`,"info");
   const res = await api(`/results?uploadId=${uploadId}&limit=200000`);
-  if (!res.ok) return toast("Failed to load upload data","error");
+  if (!res.ok) return toast("Failed to load","error");
   const d = await res.json();
-  allResults  = d;
-  currentPage = 1;
-  updateStats(d);
-  renderCharts(d);
-  renderTable();
-  showSection("dashboard", document.getElementById("nav-dashboard"));
-  toast(`Loaded ${d.length.toLocaleString()} records from "${filename||"upload"}"`,"success");
+  allResults = d; currentPage = 1;
+  updateStats(d); renderCharts(d); renderTable();
+  showSection("dashboard",document.getElementById("nav-dashboard"));
+  toast(`Loaded ${d.length.toLocaleString()} records from "${filename}"`,"success");
 }
 
 /* ════════════════════════════════════════
@@ -693,11 +632,11 @@ async function loadUsers() {
     <div class="admin-card green"><div class="admin-card-label">ADMINS</div><div class="admin-card-value">${admins}</div></div>
     <div class="admin-card orange"><div class="admin-card-label">ANALYSTS</div><div class="admin-card-value">${analysts}</div></div>
     <div class="admin-card red"><div class="admin-card-label">LOCKED</div><div class="admin-card-value">${locked}</div></div>`;
-  const tb=document.getElementById("usersBody");
-  if (!data.length){tb.innerHTML="";document.getElementById("usersEmpty").style.display="flex";return;}
+  const tb = document.getElementById("usersBody");
+  if (!data.length) { tb.innerHTML=""; document.getElementById("usersEmpty").style.display="flex"; return; }
   document.getElementById("usersEmpty").style.display="none";
-  tb.innerHTML=data.map(u=>{
-    const isLocked=u.lockedUntil&&new Date(u.lockedUntil)>new Date();
+  tb.innerHTML = data.map(u=>{
+    const isLocked = u.lockedUntil&&new Date(u.lockedUntil)>new Date();
     return`<tr>
       <td class="mono-sm">${u.email}</td>
       <td><span class="risk-badge ${u.role==="admin"?"risk-high":"risk-low"}">${u.role.toUpperCase()}</span></td>
@@ -710,9 +649,9 @@ async function loadUsers() {
 }
 
 async function unlockUser(em) {
-  const res=await api("/unlock-account",{method:"POST",body:JSON.stringify({email:em})});
+  const res = await api("/unlock-account",{method:"POST",body:JSON.stringify({email:em})});
   if(res.ok){toast(`${em} unlocked`,"success");loadUsers();}
-  else toast("Failed to unlock","error");
+  else toast("Failed","error");
 }
 
 /* ════════════════════════════════════════
@@ -751,7 +690,10 @@ async function loadSOC() {
   </tr>`).join("");
 }
 
-async function updateSOCStatus(id,status){await api(`/security-events/${id}`,{method:"PATCH",body:JSON.stringify({status})});toast(`Status → ${status}`,"info");}
+async function updateSOCStatus(id,status){
+  await api(`/security-events/${id}`,{method:"PATCH",body:JSON.stringify({status})});
+  toast(`Status → ${status}`,"info");
+}
 
 async function loadAudit(){
   const res=await api("/audit-trail?limit=50");if(!res.ok)return;
@@ -776,11 +718,11 @@ async function loadIPBlacklist(){
     <td class="mono-sm">${ip.ip}</td><td>${ip.reason||"—"}</td>
     <td class="mono-sm">${ip.blockedBy||"—"}</td>
     <td class="mono-sm">${new Date(ip.blockedAt).toLocaleString("en-IN")}</td>
-    <td><button class="btn btn-accent" style="font-size:0.48rem;padding:3px 10px" onclick="unblockIP('${ip.ip}')">UNBLOCK</button></td>
+    <td><button class="btn btn-accent" style="font-size:0.48rem;padding:3px 10px" onclick="unblockIPFn('${ip.ip}')">UNBLOCK</button></td>
   </tr>`).join("");
 }
 
-async function blockIP(){
+async function blockIPFn(){
   const ip=document.getElementById("blockIP").value.trim();
   const reason=document.getElementById("blockReason").value.trim();
   if(!ip)return toast("Enter an IP address","error");
@@ -789,7 +731,7 @@ async function blockIP(){
   else toast("Failed to block IP","error");
 }
 
-async function unblockIP(ip){
+async function unblockIPFn(ip){
   const res=await api(`/ip-blacklist/${encodeURIComponent(ip)}`,{method:"DELETE"});
   if(res.ok){toast(`${ip} unblocked`,"success");loadIPBlacklist();}
   else toast("Failed","error");
@@ -829,8 +771,7 @@ async function loadGeoMap(){
   document.getElementById("geoEmpty").style.display="none";
   data.forEach(c=>{
     const coords=CITY_COORDS[c._id];if(!coords)return;
-    const intensity=c.total>0?c.high/c.total:0;
-    heatData.push([coords[0],coords[1],intensity+0.1]);
+    heatData.push([coords[0],coords[1],(c.total>0?c.high/c.total:0)+0.1]);
     L.circleMarker(coords,{radius:6,color:"#00ffc8",fillColor:"#00ffc8",fillOpacity:0.6,weight:1})
       .bindPopup(`<div style="font-family:monospace;font-size:11px;color:#00ffc8;background:#020d0a;padding:8px;border:1px solid #0a3a28">
         <b>${c._id}</b><br>Total: ${c.total} | High: ${c.high}<br>
@@ -863,14 +804,14 @@ async function loadTOTPStatus(){
 }
 
 async function disableTOTP(){
-  if(!confirm("Disable Google Authenticator? Your account will be less secure."))return;
+  if(!confirm("Disable Google Authenticator?"))return;
   const res=await fetch("/disable-totp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
   if(res.ok){toast("Authenticator disabled","info");loadTOTPStatus();}
-  else toast("Failed to disable","error");
+  else toast("Failed","error");
 }
 
 async function doLogout(){
-  await fetch("/logout",{method:"POST",headers:{"Authorization":"Bearer "+token}});
+  await fetch("/logout",{method:"POST",headers:{"Authorization":"Bearer "+token}}).catch(()=>{});
   localStorage.clear();window.location.href="/login.html";
 }
 
@@ -881,35 +822,86 @@ function toggleTheme(){
 }
 
 /* ════════════════════════════════════════
-   AI ASSISTANT
+   AI SOC ASSISTANT — calls /api/chat (backend proxy)
 ════════════════════════════════════════ */
-function toggleAI(){document.getElementById("aiPanel").classList.toggle("open");}
+function toggleAI(){ document.getElementById("aiPanel").classList.toggle("open"); }
 
 async function sendAI(){
-  const input=document.getElementById("aiInput");
-  const msg=input.value.trim();if(!msg)return;
-  input.value="";
-  const msgs=document.getElementById("aiMessages");
-  msgs.innerHTML+=`<div class="ai-msg user">${msg}</div>`;
-  const high=allResults.filter(r=>r.risk==="High").length;
-  const flags=[...new Set(allResults.flatMap(r=>r.flags||[]))].slice(0,8).join(", ");
-  const ctx=`You are a SOC AI assistant for FraudSys, an insurance fraud detection platform. Live data: ${allResults.length} records, ${high} high-risk, ${allResults.filter(r=>r.anomaly?.isAnomaly).length} anomalies. Top flags: ${flags||"none"}. Be concise and cybersecurity-focused.`;
-  aiHistory.push({role:"user",content:msg});
-  if(aiHistory.length>20)aiHistory=aiHistory.slice(-20);
-  const thinking=document.createElement("div");
-  thinking.className="ai-msg bot";thinking.textContent="Analyzing...";
-  msgs.appendChild(thinking);msgs.scrollTop=msgs.scrollHeight;
-  try{
-    const res=await fetch("https://api.anthropic.com/v1/messages",{
-      method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:ctx,messages:aiHistory})
+  if (aiThinking) return;
+  const input = document.getElementById("aiInput");
+  const msg   = input.value.trim();
+  if (!msg) return;
+  input.value = "";
+
+  const msgs = document.getElementById("aiMessages");
+  msgs.innerHTML += `<div class="ai-msg user">${msg}</div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+
+  // Build live context from current dashboard data
+  const high   = allResults.filter(r=>r.risk==="High").length;
+  const med    = allResults.filter(r=>r.risk==="Medium").length;
+  const low    = allResults.filter(r=>r.risk==="Low").length;
+  const anom   = allResults.filter(r=>r.anomaly?.isAnomaly).length;
+  const flags  = [...new Set(allResults.flatMap(r=>r.flags||[]))].slice(0,8).join(", ");
+  const avgConf = allResults.length ? (allResults.reduce((s,r)=>s+(r.confidence||0),0)/allResults.length*100).toFixed(0) : 0;
+
+  const systemContext = `You are a SOC (Security Operations Center) AI assistant embedded in FraudSys, a real-time insurance fraud detection platform.
+
+Current live dashboard statistics:
+- Total records analyzed: ${allResults.length.toLocaleString()}
+- High risk cases: ${high.toLocaleString()} (${allResults.length>0?((high/allResults.length)*100).toFixed(1):0}%)
+- Medium risk cases: ${med.toLocaleString()}
+- Low risk cases: ${low.toLocaleString()}
+- Statistical anomalies detected: ${anom.toLocaleString()}
+- Average model confidence: ${avgConf}%
+- Top fraud flags detected: ${flags||"none yet"}
+
+Your role: Analyze fraud patterns, explain ML predictions, guide investigations, suggest escalation priorities, and answer cybersecurity questions. Be concise, professional, and actionable. Use bullet points for lists.`;
+
+  aiHistory.push({ role: "user", content: msg });
+  if (aiHistory.length > 20) aiHistory = aiHistory.slice(-20);
+
+  // Show typing indicator
+  const thinking = document.createElement("div");
+  thinking.className = "ai-msg bot";
+  thinking.style.opacity = "0.6";
+  thinking.textContent = "Analyzing...";
+  msgs.appendChild(thinking);
+  msgs.scrollTop = msgs.scrollHeight;
+  aiThinking = true;
+
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type":  "application/json",
+        "Authorization": "Bearer " + token
+      },
+      body: JSON.stringify({
+        messages:      aiHistory,
+        systemContext: systemContext
+      })
     });
-    const data=await res.json();
-    const reply=data.content?.[0]?.text||"Unable to get response.";
-    aiHistory.push({role:"assistant",content:reply});
-    thinking.textContent=reply;
-  }catch(e){thinking.textContent="Network error — check API connection.";}
-  msgs.scrollTop=msgs.scrollHeight;
+
+    const data = await res.json();
+
+    if (res.ok && data.reply) {
+      aiHistory.push({ role: "assistant", content: data.reply });
+      thinking.style.opacity = "1";
+      thinking.textContent   = data.reply;
+    } else {
+      thinking.style.opacity = "1";
+      thinking.style.color   = "var(--danger)";
+      thinking.textContent   = "Error: " + (data.error || "No response from AI");
+    }
+  } catch(e) {
+    thinking.style.opacity = "1";
+    thinking.style.color   = "var(--danger)";
+    thinking.textContent   = "Network error — check backend connection";
+  } finally {
+    aiThinking = false;
+    msgs.scrollTop = msgs.scrollHeight;
+  }
 }
 
 /* ════════════════════════════════════════
