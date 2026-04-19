@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FraudSys — 2FA Setup</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@400;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#020d0a;color:#c8e6dc;font-family:'Rajdhani',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center}
+  .scanline{position:fixed;inset:0;pointer-events:none;z-index:9999;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,200,0.012) 2px,rgba(0,255,200,0.012) 4px)}
+  .wrap{width:100%;max-width:420px;padding:20px}
+  .logo{font-family:'Orbitron',monospace;font-size:1.2rem;letter-spacing:4px;color:#00ffc8;text-align:center;margin-bottom:28px}
+  .panel{background:#041a12;border:1px solid #0a3a28;padding:32px}
+  .step-title{font-family:'Orbitron',monospace;font-size:0.75rem;letter-spacing:3px;color:#00ffc8;margin-bottom:10px;text-align:center}
+  .step-desc{font-family:'Share Tech Mono',monospace;font-size:0.54rem;color:#4a7a70;text-align:center;line-height:1.7;margin-bottom:24px;letter-spacing:1px}
+  .qr-wrap{text-align:center;margin-bottom:20px}
+  .qr-wrap img{width:180px;height:180px;border:2px solid #0a3a28}
+  .secret-box{font-family:'Share Tech Mono',monospace;font-size:0.56rem;color:#4a7a70;background:#020d0a;border:1px solid #0a3a28;padding:10px;text-align:center;word-break:break-all;margin-bottom:20px;letter-spacing:1px}
+  .steps-list{margin-bottom:24px}
+  .step-item{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px}
+  .step-num{font-family:'Orbitron',monospace;font-size:0.65rem;color:#00ffc8;border:1px solid #0a3a28;width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .step-text{font-family:'Share Tech Mono',monospace;font-size:0.54rem;color:#4a7a70;line-height:1.6;padding-top:3px}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-family:'Share Tech Mono',monospace;font-size:0.52rem;letter-spacing:2px;color:#4a7a70;margin-bottom:7px}
+  .field input{width:100%;padding:12px;background:#020d0a;border:1px solid #0a3a28;color:#00ffc8;font-family:'Orbitron',monospace;font-size:1.4rem;letter-spacing:8px;text-align:center;outline:none;transition:border-color 0.2s}
+  .field input:focus{border-color:#00ffc8}
+  .submit-btn{width:100%;padding:13px;background:transparent;border:1px solid #00ffc8;color:#00ffc8;font-family:'Orbitron',monospace;font-size:0.65rem;font-weight:700;letter-spacing:3px;cursor:pointer;transition:all 0.2s}
+  .submit-btn:hover{background:rgba(0,255,200,0.1);box-shadow:0 0 20px rgba(0,255,200,0.2)}
+  .submit-btn:disabled{opacity:0.4;cursor:not-allowed}
+  .msg{font-family:'Share Tech Mono',monospace;font-size:0.56rem;letter-spacing:1px;padding:10px 12px;margin-top:14px;display:none}
+  .msg.error  {border:1px solid #ff2d6b;color:#ff2d6b;background:rgba(255,45,107,0.06)}
+  .msg.success{border:1px solid #00cc88;color:#00cc88;background:rgba(0,204,136,0.06)}
+  .loading{text-align:center;font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:#4a7a70;letter-spacing:2px;padding:40px}
+  .skip-link{font-family:'Share Tech Mono',monospace;font-size:0.52rem;color:#4a7a70;text-align:center;display:block;margin-top:14px;cursor:pointer}
+  .skip-link:hover{color:#00ffc8}
+</style>
+</head>
+<body>
+<div class="scanline"></div>
+<div class="wrap">
+  <div class="logo">⬡ FRAUDSYS // 2FA SETUP</div>
+  <div class="panel">
+    <div id="loadingState" class="loading">LOADING SETUP...</div>
+    <div id="setupContent" style="display:none">
+      <div class="step-title">SECURE YOUR ACCOUNT</div>
+      <div class="step-desc">Google Authenticator is required<br>for all FraudSys accounts</div>
+
+      <div class="steps-list">
+        <div class="step-item"><div class="step-num">1</div><div class="step-text">Install Google Authenticator on your phone (iOS or Android)</div></div>
+        <div class="step-item"><div class="step-num">2</div><div class="step-text">Open the app and tap the + button → "Scan QR code"</div></div>
+        <div class="step-item"><div class="step-num">3</div><div class="step-text">Scan the QR code below</div></div>
+        <div class="step-item"><div class="step-num">4</div><div class="step-text">Enter the 6-digit code shown in the app</div></div>
+      </div>
+
+      <div class="qr-wrap">
+        <img id="qrImg" src="" alt="QR Code">
+      </div>
+
+      <div class="secret-box" id="secretBox">Loading...</div>
+
+      <div class="field">
+        <label>ENTER CODE FROM AUTHENTICATOR</label>
+        <input type="text" id="codeInput" maxlength="6" placeholder="000000" inputmode="numeric" onkeydown="if(event.key==='Enter')activate()">
+      </div>
+
+      <button class="submit-btn" id="activateBtn" onclick="activate()">ACTIVATE & CONTINUE</button>
+      <span class="skip-link" onclick="logout()">← Logout and try again</span>
+      <div class="msg" id="msg"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const email = localStorage.getItem("email");
+const token = localStorage.getItem("token");
+
+if (!email || !token) window.location.href = "/login.html";
+
+async function loadSetup() {
+  try {
+    const res  = await fetch("/setup-totp", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      document.getElementById("qrImg").src = data.qrCode;
+      document.getElementById("secretBox").textContent = "Manual key: " + data.secret;
+      document.getElementById("loadingState").style.display = "none";
+      document.getElementById("setupContent").style.display = "block";
+    } else {
+      document.getElementById("loadingState").textContent = "Error loading setup: " + (data.error || "Unknown error");
+    }
+  } catch(e) {
+    document.getElementById("loadingState").textContent = "Network error — refresh to try again";
+  }
+}
+
+async function activate() {
+  const code = document.getElementById("codeInput").value.replace(/\s/g,"");
+  if (code.length !== 6) return showMsg("Enter 6-digit code","error");
+  document.getElementById("activateBtn").disabled = true;
+  document.getElementById("activateBtn").textContent = "VERIFYING...";
+
+  try {
+    const res  = await fetch("/enable-totp", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ email, token: code })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showMsg("2FA activated! Redirecting...","success");
+      setTimeout(()=> window.location.href = "/index.html", 1500);
+    } else {
+      showMsg(data.error || "Invalid code — try again","error");
+      document.getElementById("activateBtn").disabled = false;
+      document.getElementById("activateBtn").textContent = "ACTIVATE & CONTINUE";
+    }
+  } catch(e) {
+    showMsg("Network error","error");
+    document.getElementById("activateBtn").disabled = false;
+    document.getElementById("activateBtn").textContent = "ACTIVATE & CONTINUE";
+  }
+}
+
+function showMsg(text, type) {
+  const el = document.getElementById("msg");
+  el.textContent = text; el.className = "msg " + type; el.style.display = "block";
+}
+
+function logout() {
+  localStorage.clear();
+  window.location.href = "/login.html";
+}
+
+loadSetup();
+</script>
+</body>
+</html>
