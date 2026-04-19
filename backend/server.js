@@ -20,7 +20,7 @@ const rateLimit      = require("express-rate-limit");
 const QRCode         = require("qrcode");
 
 const app = express();
-app.set("trust proxy", 1); // Trust Railway/Docker/Nginx reverse proxy
+app.set("trust proxy", 1);
 app.use(cors());
 app.use(express.json());
 
@@ -28,28 +28,26 @@ const PDFDocument = require("pdfkit");
 
 /* ================= RATE LIMITING ================= */
 const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 200,
   message: { error: "Too many requests — slow down ❌" },
   standardHeaders: true, legacyHeaders: false
 });
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20, // stricter for auth endpoints
+  max: 20,
   message: { error: "Too many login attempts — try again later ❌" }
 });
 const uploadLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 5, // max 5 uploads per minute
+  max: 5,
   message: { error: "Upload rate limit exceeded ❌" }
 });
 
 app.use(globalLimiter);
 
 /* ================= SECURITY MIDDLEWARE ================= */
-// Sanitize MongoDB queries — prevents NoSQL injection ($where, $gt attacks)
 app.use(mongoSanitize());
-// Strip dangerous characters from req.body strings (XSS prevention)
 app.use((req, res, next) => {
   const sanitizeStr = (str) => typeof str === "string"
     ? str.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
@@ -69,8 +67,8 @@ app.use((req, res, next) => {
 });
 
 /* ================= JWT CONFIG ================= */
-const JWT_SECRET  = process.env.JWT_SECRET  || "fraudsys-super-secret-jwt-key-2024";
-const JWT_EXPIRY  = process.env.JWT_EXPIRY  || "8h"; // token expires in 8 hours
+const JWT_SECRET = process.env.JWT_SECRET || "fraudsys-super-secret-jwt-key-2024";
+const JWT_EXPIRY = process.env.JWT_EXPIRY || "8h";
 
 function generateToken(user) {
   return jwt.sign(
@@ -85,18 +83,16 @@ async function verifyToken(req, res, next) {
   const token = authHeader && authHeader.split(" ")[1];
   if (!token) return res.status(401).json({ error: "No token — access denied ❌" });
 
-  // Check IP blacklist
   const ip = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown";
   const blocked = await IPBlacklist.findOne({ ip });
   if (blocked) return res.status(403).json({ error: "Access denied — IP blocked ❌" });
 
-  // Check token revocation
   const revoked = await RevokedToken.findOne({ token });
   if (revoked) return res.status(401).json({ error: "Session revoked — please login again ❌", expired: true });
 
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
-    req._token = token; // store for logout
+    req.user   = jwt.verify(token, JWT_SECRET);
+    req._token = token;
     next();
   } catch (err) {
     if (err.name === "TokenExpiredError") {
@@ -109,10 +105,7 @@ async function verifyToken(req, res, next) {
 /* ================= EMAIL / OTP CONFIG ================= */
 const emailTransporter = nodemailer.createTransport({
   service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER || "",
-    pass: process.env.EMAIL_PASS || ""
-  }
+  auth: { user: process.env.EMAIL_USER || "", pass: process.env.EMAIL_PASS || "" }
 });
 
 const otpStore = {};
@@ -123,21 +116,17 @@ function generateOTP() {
 
 async function sendOTP(email, otp) {
   const hasEmail = process.env.EMAIL_USER && process.env.EMAIL_PASS;
-  if (!hasEmail) {
-    console.log(`\n[OTP DEBUG] Code for ${email}: ${otp}\n`);
-    return;
-  }
+  if (!hasEmail) { console.log(`\n[OTP DEBUG] Code for ${email}: ${otp}\n`); return; }
   await emailTransporter.sendMail({
     from: `"FraudSys Security" <${process.env.EMAIL_USER}>`,
     to: email,
     subject: "FraudSys — Your 2FA Login Code",
-    html: `
-      <div style="font-family:monospace;background:#020d0a;color:#00ffc8;padding:30px;border:1px solid #0a2a1f">
-        <h2 style="letter-spacing:4px">FRAUDSYS // 2FA</h2>
-        <p style="color:#a0d4c0">Your one-time login code:</p>
-        <div style="font-size:2.5rem;font-weight:bold;letter-spacing:8px;color:#00ffc8;margin:20px 0">${otp}</div>
-        <p style="color:#2a5a48;font-size:12px">Expires in 5 minutes. Do not share this code.</p>
-      </div>`
+    html: `<div style="font-family:monospace;background:#020d0a;color:#00ffc8;padding:30px;border:1px solid #0a2a1f">
+      <h2 style="letter-spacing:4px">FRAUDSYS // 2FA</h2>
+      <p style="color:#a0d4c0">Your one-time login code:</p>
+      <div style="font-size:2.5rem;font-weight:bold;letter-spacing:8px;color:#00ffc8;margin:20px 0">${otp}</div>
+      <p style="color:#2a5a48;font-size:12px">Expires in 5 minutes. Do not share this code.</p>
+    </div>`
   });
 }
 
@@ -164,11 +153,11 @@ const UserSchema = new mongoose.Schema({
   failedLogins: { type: Number, default: 0 },
   lockedUntil:  { type: Date,   default: null },
   lastLogin:    { type: Date,   default: null },
-  twoFAEnabled:  { type: Boolean, default: true },
-  pendingOTP:    { type: String,  default: null },
-  otpExpiresAt:  { type: Date,    default: null },
-  totpSecret:    { type: String,  default: null },
-  totpEnabled:   { type: Boolean, default: false }
+  twoFAEnabled: { type: Boolean, default: true },
+  pendingOTP:   { type: String,  default: null },
+  otpExpiresAt: { type: Date,    default: null },
+  totpSecret:   { type: String,  default: null },
+  totpEnabled:  { type: Boolean, default: false }
 });
 const User = mongoose.model("User", UserSchema);
 
@@ -190,27 +179,21 @@ const Result = mongoose.model("Result", ResultSchema);
 const UploadHistorySchema = new mongoose.Schema({
   filename: String, totalRows: Number,
   highRisk: Number, mediumRisk: Number, lowRisk: Number,
-  anomalies: Number,
-  uploadedBy: String,
+  anomalies: Number, uploadedBy: String,
   uploadedAt: { type: Date, default: Date.now }
 });
 const UploadHistory = mongoose.model("UploadHistory", UploadHistorySchema);
 
-/* ================= SECURITY EVENT MODEL ================= */
 const SecurityEventSchema = new mongoose.Schema({
-  severity:    { type: String, enum: ["CRITICAL","HIGH","MEDIUM","LOW","INFO"], default: "INFO" },
-  category:    { type: String, enum: ["AUTH","UPLOAD","ACCESS","SYSTEM","ANOMALY"], default: "SYSTEM" },
-  title:       String,
-  description: String,
-  actor:       String,
-  ip:          String,
-  metadata:    mongoose.Schema.Types.Mixed,
-  status:      { type: String, enum: ["OPEN","INVESTIGATING","RESOLVED"], default: "OPEN" },
-  timestamp:   { type: Date, default: Date.now }
+  severity:  { type: String, enum: ["CRITICAL","HIGH","MEDIUM","LOW","INFO"], default: "INFO" },
+  category:  { type: String, enum: ["AUTH","UPLOAD","ACCESS","SYSTEM","ANOMALY"], default: "SYSTEM" },
+  title:     String, description: String, actor: String, ip: String,
+  metadata:  mongoose.Schema.Types.Mixed,
+  status:    { type: String, enum: ["OPEN","INVESTIGATING","RESOLVED"], default: "OPEN" },
+  timestamp: { type: Date, default: Date.now }
 });
 const SecurityEvent = mongoose.model("SecurityEvent", SecurityEventSchema);
 
-/* ================= IP BLACKLIST MODEL ================= */
 const IPBlacklistSchema = new mongoose.Schema({
   ip:        { type: String, unique: true },
   reason:    { type: String, default: "" },
@@ -219,7 +202,6 @@ const IPBlacklistSchema = new mongoose.Schema({
 });
 const IPBlacklist = mongoose.model("IPBlacklist", IPBlacklistSchema);
 
-/* ================= TOKEN BLACKLIST (revoked JWTs) ================= */
 const RevokedTokenSchema = new mongoose.Schema({
   token:     { type: String, unique: true },
   email:     String,
@@ -227,15 +209,10 @@ const RevokedTokenSchema = new mongoose.Schema({
 });
 const RevokedToken = mongoose.model("RevokedToken", RevokedTokenSchema);
 
-/* ================= AUDIT TRAIL MODEL ================= */
 const AuditSchema = new mongoose.Schema({
-  actor:    String,
-  ip:       String,
-  action:   String,
-  target:   String,
-  before:   mongoose.Schema.Types.Mixed,
-  after:    mongoose.Schema.Types.Mixed,
-  timestamp:{ type: Date, default: Date.now }
+  actor: String, ip: String, action: String, target: String,
+  before: mongoose.Schema.Types.Mixed, after: mongoose.Schema.Types.Mixed,
+  timestamp: { type: Date, default: Date.now }
 });
 AuditSchema.index({ timestamp: -1 });
 const Audit = mongoose.model("Audit", AuditSchema);
@@ -247,18 +224,14 @@ async function auditLog(actor, req, action, target, before = null, after = null)
   } catch(e) { console.error("Audit log error:", e.message); }
 }
 
-/* ================= SOC LOGGER (helper) ================= */
 async function logEvent(severity, category, title, description, actor, req, metadata = {}) {
   try {
     const ip = req?.headers?.["x-forwarded-for"] || req?.socket?.remoteAddress || "unknown";
     await SecurityEvent.create({ severity, category, title, description, actor, ip, metadata });
     console.log(`[SOC][${severity}] ${title} — ${actor}`);
-  } catch (err) {
-    console.error("SOC log error:", err.message);
-  }
+  } catch (err) { console.error("SOC log error:", err.message); }
 }
 
-/* ================= BRUTE FORCE TRACKER (in-memory) ================= */
 const ipFailMap = {};
 function trackFailedIP(ip) {
   const now = Date.now();
@@ -275,23 +248,12 @@ app.post("/setup-totp", async (req, res) => {
     const { email } = req.body;
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ error: "User not found" });
-
-    const secret = speakeasy.generateSecret({
-      name: `FraudSys (${email})`,
-      issuer: "FraudSys"
-    });
-
+    const secret = speakeasy.generateSecret({ name: `FraudSys (${email})`, issuer: "FraudSys" });
     user.totpSecret  = secret.base32;
     user.totpEnabled = false;
     await user.save();
-
     const qrDataURL = await QRCode.toDataURL(secret.otpauth_url);
-
-    res.json({
-      secret:    secret.base32,
-      qrCode:    qrDataURL,
-      otpauth:   secret.otpauth_url
-    });
+    res.json({ secret: secret.base32, qrCode: qrDataURL, otpauth: secret.otpauth_url });
   } catch (err) {
     console.error("TOTP setup error:", err);
     res.status(500).json({ error: "TOTP setup failed" });
@@ -303,23 +265,13 @@ app.post("/enable-totp", async (req, res) => {
     const { email, token } = req.body;
     const user = await User.findOne({ email });
     if (!user || !user.totpSecret) return res.status(400).json({ error: "TOTP not set up" });
-
-    const valid = speakeasy.totp.verify({
-      secret:   user.totpSecret,
-      encoding: "base32",
-      token:    token.replace(/\s/g, ""),
-      window:   1
-    });
-
+    const valid = speakeasy.totp.verify({ secret: user.totpSecret, encoding: "base32", token: token.replace(/\s/g, ""), window: 1 });
     if (!valid) return res.status(400).json({ error: "Invalid code — try again ❌" });
-
     user.totpEnabled = true;
     await user.save();
     await logEvent("INFO", "AUTH", "TOTP 2FA enabled", `${email} enabled Google Authenticator`, email, req);
     res.json({ message: "Google Authenticator enabled ✅" });
-  } catch (err) {
-    res.status(500).json({ error: "Verification failed" });
-  }
+  } catch (err) { res.status(500).json({ error: "Verification failed" }); }
 });
 
 app.post("/verify-totp", authLimiter, async (req, res) => {
@@ -328,30 +280,19 @@ app.post("/verify-totp", authLimiter, async (req, res) => {
     const user = await User.findOne({ email });
     if (!user || !user.totpSecret || !user.totpEnabled)
       return res.status(400).json({ error: "TOTP not enabled for this account" });
-
-    const valid = speakeasy.totp.verify({
-      secret:   user.totpSecret,
-      encoding: "base32",
-      token:    token.replace(/\s/g, ""),
-      window:   1
-    });
-
+    const valid = speakeasy.totp.verify({ secret: user.totpSecret, encoding: "base32", token: token.replace(/\s/g, ""), window: 1 });
     if (!valid) {
       await logEvent("MEDIUM", "AUTH", "TOTP verification failed", `Invalid TOTP for ${email}`, email, req);
       return res.status(400).json({ error: "Invalid code ❌" });
     }
-
     user.lastLogin    = new Date();
     user.failedLogins = 0;
     await user.save();
-
     const jwtToken = generateToken(user);
     await logEvent("INFO", "AUTH", "TOTP login successful", `${email} authenticated via Google Authenticator`, email, req, { role: user.role });
     await auditLog(email, req, "LOGIN", email, null, { method: "TOTP", role: user.role });
     res.json({ message: "Login successful ✅", token: jwtToken, role: user.role, email: user.email, expiresIn: JWT_EXPIRY });
-  } catch (err) {
-    res.status(500).json({ error: "Verification failed" });
-  }
+  } catch (err) { res.status(500).json({ error: "Verification failed" }); }
 });
 
 app.post("/disable-totp", async (req, res) => {
@@ -364,9 +305,7 @@ app.post("/disable-totp", async (req, res) => {
     await user.save();
     await logEvent("INFO", "AUTH", "TOTP disabled", `${email} disabled Google Authenticator`, email, req);
     res.json({ message: "Google Authenticator disabled" });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to disable TOTP" });
-  }
+  } catch (err) { res.status(500).json({ error: "Failed to disable TOTP" }); }
 });
 
 app.get("/totp-status", async (req, res) => {
@@ -375,9 +314,7 @@ app.get("/totp-status", async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ error: "User not found" });
     res.json({ totpEnabled: user.totpEnabled || false });
-  } catch (err) {
-    res.status(500).json({ error: "Failed" });
-  }
+  } catch (err) { res.status(500).json({ error: "Failed" }); }
 });
 
 /* ================= FILE UPLOAD ================= */
@@ -399,19 +336,15 @@ app.post("/register", async (req, res) => {
     const existing = await User.findOne({ email });
     if (existing) {
       await logEvent("LOW", "AUTH", "Registration attempt — email exists",
-        `Someone tried to register with already-used email: ${email}`,
-        email, req, { email });
+        `Someone tried to register with already-used email: ${email}`, email, req, { email });
       return res.status(400).json({ error: "User already exists ❌" });
     }
     const hashed = await bcrypt.hash(password, 10);
     const user   = new User({ email, password: hashed, role, authProvider: "local" });
     await user.save();
-    await logEvent("INFO", "AUTH", "New user registered",
-      `${email} registered as ${role}`, email, req, { role });
+    await logEvent("INFO", "AUTH", "New user registered", `${email} registered as ${role}`, email, req, { role });
     res.json({ message: "Registered successfully ✅" });
-  } catch (err) {
-    res.status(500).json({ error: "Registration failed ❌" });
-  }
+  } catch (err) { res.status(500).json({ error: "Registration failed ❌" }); }
 });
 
 app.post("/login", authLimiter, async (req, res) => {
@@ -419,21 +352,17 @@ app.post("/login", authLimiter, async (req, res) => {
   const ip = req?.socket?.remoteAddress || "unknown";
   try {
     const user = await User.findOne({ email });
-
     if (!user) {
       const attempts = trackFailedIP(ip);
       await logEvent("MEDIUM", "AUTH", "Login failed — unknown user",
-        `Login attempt for non-existent account: ${email}`,
-        email || "anonymous", req, { attempts_from_ip: attempts });
+        `Login attempt for non-existent account: ${email}`, email || "anonymous", req, { attempts_from_ip: attempts });
       return res.status(401).json({ error: "Invalid credentials ❌" });
     }
-
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       await logEvent("HIGH", "AUTH", "Login attempt on locked account",
         `Locked account login attempt: ${email}`, email, req, { locked_until: user.lockedUntil });
       return res.status(403).json({ error: "Account locked. Try again in 15 minutes ❌" });
     }
-
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       user.failedLogins = (user.failedLogins || 0) + 1;
@@ -442,8 +371,7 @@ app.post("/login", authLimiter, async (req, res) => {
         user.lockedUntil = new Date(Date.now() + 15 * 60_000);
         await user.save();
         await logEvent("CRITICAL", "AUTH", "Account locked — brute force detected",
-          `Account ${email} locked after ${user.failedLogins} failed attempts`,
-          email, req, { failed_attempts: user.failedLogins, ip_attempts: attempts });
+          `Account ${email} locked after ${user.failedLogins} failed attempts`, email, req, { failed_attempts: user.failedLogins, ip_attempts: attempts });
         return res.status(403).json({ error: "Account locked after too many failed attempts ❌" });
       }
       if (user.failedLogins >= 3) {
@@ -456,18 +384,15 @@ app.post("/login", authLimiter, async (req, res) => {
       await user.save();
       return res.status(401).json({ error: "Invalid credentials ❌" });
     }
-
     if (user.totpEnabled && user.totpSecret) {
       await logEvent("INFO", "AUTH", "TOTP required for login",
         `Password verified for ${email}, TOTP required`, email, req);
       return res.json({ requiresTOTP: true, email, message: "Enter your Google Authenticator code" });
     }
-
     const tempToken = generateToken(user);
     await logEvent("INFO", "AUTH", "First login — TOTP setup required",
       `Password verified for ${email}, redirecting to mandatory TOTP setup`, email, req);
     return res.json({ requiresTOTPSetup: true, email, token: tempToken, role: user.role, message: "Setup Google Authenticator to continue" });
-
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ error: "Login error ❌" });
@@ -478,40 +403,27 @@ app.post("/verify-otp", authLimiter, async (req, res) => {
   const { email, otp } = req.body;
   try {
     const user = await User.findOne({ email });
-    if (!user || !user.pendingOTP) {
+    if (!user || !user.pendingOTP)
       return res.status(400).json({ error: "No OTP pending for this account ❌" });
-    }
     if (!user.otpExpiresAt || user.otpExpiresAt < new Date()) {
       user.pendingOTP = null;
       await user.save();
-      await logEvent("MEDIUM", "AUTH", "OTP expired",
-        `Expired OTP used for ${email}`, email, req);
+      await logEvent("MEDIUM", "AUTH", "OTP expired", `Expired OTP used for ${email}`, email, req);
       return res.status(400).json({ error: "OTP expired — please login again ❌" });
     }
     const otpMatch = await bcrypt.compare(otp, user.pendingOTP);
     if (!otpMatch) {
-      await logEvent("HIGH", "AUTH", "Invalid OTP attempt",
-        `Wrong OTP entered for ${email}`, email, req);
+      await logEvent("HIGH", "AUTH", "Invalid OTP attempt", `Wrong OTP entered for ${email}`, email, req);
       return res.status(401).json({ error: "Invalid OTP ❌" });
     }
-
     user.pendingOTP   = null;
     user.otpExpiresAt = null;
     user.lastLogin    = new Date();
     await user.save();
-
     const token = generateToken(user);
     await logEvent("INFO", "AUTH", "2FA login successful",
       `${email} completed 2FA and logged in as ${user.role}`, email, req, { role: user.role });
-
-    res.json({
-      message:  "Login successful ✅",
-      token,
-      role:     user.role,
-      email:    user.email,
-      avatar:   user.avatar || null,
-      expiresIn: JWT_EXPIRY
-    });
+    res.json({ message: "Login successful ✅", token, role: user.role, email: user.email, avatar: user.avatar || null, expiresIn: JWT_EXPIRY });
   } catch (err) {
     console.error("OTP verify error:", err);
     res.status(500).json({ error: "OTP verification failed ❌" });
@@ -525,24 +437,17 @@ app.post("/auth/google", async (req, res) => {
     const payload = ticket.getPayload();
     const { sub: googleId, email, name, picture } = payload;
     const requestedRole = req.body.role || "analyst";
-
     let user = await User.findOne({ $or: [{ googleId }, { email }] });
     const isNew = !user;
     if (!user) {
       user = new User({ email, googleId, avatar: picture, role: requestedRole, authProvider: "google" });
     } else {
-      user.googleId     = googleId;
-      user.avatar       = picture;
-      user.authProvider = "google";
-      user.lastLogin    = new Date();
+      user.googleId = googleId; user.avatar = picture;
+      user.authProvider = "google"; user.lastLogin = new Date();
     }
     await user.save();
-
-    await logEvent("INFO", "AUTH",
-      isNew ? "New Google user registered" : "Google login successful",
-      `${email} authenticated via Google as ${user.role}`,
-      email, req, { role: user.role, isNew, authProvider: "google" });
-
+    await logEvent("INFO", "AUTH", isNew ? "New Google user registered" : "Google login successful",
+      `${email} authenticated via Google as ${user.role}`, email, req, { role: user.role, isNew, authProvider: "google" });
     const token = generateToken(user);
     res.json({ message: "Google login successful ✅", token, role: user.role, email: user.email, name, avatar: picture, expiresIn: JWT_EXPIRY });
   } catch (err) {
@@ -551,6 +456,22 @@ app.post("/auth/google", async (req, res) => {
       `Google token verification failed: ${err.message}`, "anonymous", req);
     res.status(401).json({ error: "Google authentication failed ❌" });
   }
+});
+
+/* ================= LOGOUT ================= */
+app.post("/logout", async (req, res) => {
+  try {
+    const authHeader = req.headers["authorization"];
+    const token = authHeader && authHeader.split(" ")[1];
+    if (token) {
+      const decoded = jwt.decode(token);
+      await RevokedToken.create({ token, email: decoded?.email }).catch(() => {});
+      await logEvent("INFO", "AUTH", "User logged out",
+        `${decoded?.email || "unknown"} logged out`, decoded?.email || "unknown", req);
+      await auditLog(decoded?.email || "unknown", req, "LOGOUT", decoded?.email || "unknown");
+    }
+    res.json({ message: "Logged out ✅" });
+  } catch (err) { res.json({ message: "Logged out ✅" }); }
 });
 
 /* ─────────────────────────────────────────────────────────────
@@ -564,13 +485,9 @@ app.get("/security-events", async (req, res) => {
     if (severity) filter.severity = severity;
     if (category) filter.category = category;
     if (status)   filter.status   = status;
-    const events = await SecurityEvent.find(filter)
-      .sort({ timestamp: -1 })
-      .limit(parseInt(limit));
+    const events = await SecurityEvent.find(filter).sort({ timestamp: -1 }).limit(parseInt(limit));
     res.json(events);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch events ❌" });
-  }
+  } catch (err) { res.status(500).json({ error: "Failed to fetch events ❌" }); }
 });
 
 app.get("/security-stats", async (req, res) => {
@@ -583,25 +500,17 @@ app.get("/security-stats", async (req, res) => {
       SecurityEvent.countDocuments({ status: "OPEN" }),
       SecurityEvent.countDocuments({ timestamp: { $gte: since24h } })
     ]);
-    const categories = await SecurityEvent.aggregate([
-      { $group: { _id: "$category", count: { $sum: 1 } } }
-    ]);
+    const categories = await SecurityEvent.aggregate([{ $group: { _id: "$category", count: { $sum: 1 } } }]);
     res.json({ total, critical, high, open, last24h, categories });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch stats ❌" });
-  }
+  } catch (err) { res.status(500).json({ error: "Failed to fetch stats ❌" }); }
 });
 
 app.patch("/security-events/:id", async (req, res) => {
   try {
     const { status } = req.body;
-    const event = await SecurityEvent.findByIdAndUpdate(
-      req.params.id, { status }, { new: true }
-    );
+    const event = await SecurityEvent.findByIdAndUpdate(req.params.id, { status }, { new: true });
     res.json(event);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to update event ❌" });
-  }
+  } catch (err) { res.status(500).json({ error: "Failed to update event ❌" }); }
 });
 
 /* ─────────────────────────────────────────────────────────────
@@ -626,18 +535,13 @@ app.post("/unlock-account", async (req, res) => {
     await logEvent("INFO", "AUTH", "Account manually unlocked",
       `Admin unlocked account: ${email}`, "admin", req, { unlockedEmail: email });
     res.json({ message: `Account ${email} unlocked ✅` });
-  } catch (err) {
-    console.error("Unlock error:", err.message);
-    res.status(500).json({ error: "Failed to unlock account ❌" });
-  }
+  } catch (err) { res.status(500).json({ error: "Failed to unlock account ❌" }); }
 });
 
 /* ================= IP BLACKLIST ================= */
 app.get("/ip-blacklist", verifyToken, async (req, res) => {
-  try {
-    const list = await IPBlacklist.find().sort({ blockedAt: -1 });
-    res.json(list);
-  } catch(e) { res.status(500).json({ error: "Failed" }); }
+  try { res.json(await IPBlacklist.find().sort({ blockedAt: -1 })); }
+  catch(e) { res.status(500).json({ error: "Failed" }); }
 });
 
 app.post("/ip-blacklist", verifyToken, async (req, res) => {
@@ -667,20 +571,16 @@ app.get("/audit-trail", verifyToken, async (req, res) => {
     const limit  = parseInt(req.query.limit) || 100;
     const action = req.query.action || null;
     const query  = action ? { action } : {};
-    const logs   = await Audit.find(query).sort({ timestamp: -1 }).limit(limit);
-    res.json(logs);
+    res.json(await Audit.find(query).sort({ timestamp: -1 }).limit(limit));
   } catch(e) { res.status(500).json({ error: "Failed" }); }
 });
 
-/* ================= REVOKED TOKENS (admin view) ================= */
 app.get("/revoked-tokens", verifyToken, async (req, res) => {
-  try {
-    const tokens = await RevokedToken.find().sort({ revokedAt: -1 }).limit(50);
-    res.json(tokens);
-  } catch(e) { res.status(500).json({ error: "Failed" }); }
+  try { res.json(await RevokedToken.find().sort({ revokedAt: -1 }).limit(50)); }
+  catch(e) { res.status(500).json({ error: "Failed" }); }
 });
 
-/* GEO STATS — fraud counts aggregated by location */
+/* ================= GEO STATS ================= */
 app.get("/geo-stats", async (req, res) => {
   try {
     const stats = await Result.aggregate([
@@ -698,10 +598,7 @@ app.get("/geo-stats", async (req, res) => {
       { $limit: 200 }
     ]);
     res.json(stats);
-  } catch(err) {
-    console.error("Geo stats error:", err.message);
-    res.status(500).json({ error: "Failed to fetch geo stats" });
-  }
+  } catch(err) { res.status(500).json({ error: "Failed to fetch geo stats" }); }
 });
 
 app.get("/results", async (req, res) => {
@@ -709,22 +606,16 @@ app.get("/results", async (req, res) => {
     const uploadId = req.query.uploadId;
     const query    = (uploadId && uploadId.match(/^[a-f\d]{24}$/i)) ? { uploadId } : {};
     const limit    = parseInt(req.query.limit) || 1000;
-    const results  = await Result.find(query).sort({ uploadedAt: -1 }).limit(limit).lean();
-    res.json(results);
-  } catch (err) {
-    console.error("Results fetch error:", err.message);
-    res.status(500).json({ error: "Failed to fetch results ❌" });
-  }
+    res.json(await Result.find(query).sort({ uploadedAt: -1 }).limit(limit).lean());
+  } catch (err) { res.status(500).json({ error: "Failed to fetch results ❌" }); }
 });
 
 app.get("/upload-history", async (req, res) => {
-  try {
-    const history = await UploadHistory.find().sort({ uploadedAt: -1 }).limit(20);
-    res.json(history);
-  } catch (err) { res.status(500).json({ error: "Failed to fetch upload history ❌" }); }
+  try { res.json(await UploadHistory.find().sort({ uploadedAt: -1 }).limit(20)); }
+  catch (err) { res.status(500).json({ error: "Failed to fetch upload history ❌" }); }
 });
 
-/* UPLOAD + ML (batch prediction — fast) */
+/* ================= UPLOAD + ML ================= */
 app.post("/upload", uploadLimiter, upload.single("file"), async (req, res) => {
   if (!req.file) {
     await logEvent("MEDIUM", "UPLOAD", "Upload attempt with no file",
@@ -744,24 +635,19 @@ app.post("/upload", uploadLimiter, upload.single("file"), async (req, res) => {
     const headers  = csvLines[0].toLowerCase().split(",").map(h => h.trim().replace(/[^a-z_]/g, ""));
     const idx      = (name) => headers.indexOf(name);
 
-    if (idx("amount") === -1 || idx("claims") === -1) {
+    if (idx("amount") === -1 || idx("claims") === -1)
       return res.status(400).json({ error: "CSV must have 'amount' and 'claims' columns ❌" });
-    }
 
     const dataLines = csvLines.slice(1).filter(l => l.trim());
     const CHUNK     = 2000;
-
     await Result.deleteMany({});
 
     const uploadRecord = await UploadHistory.create({
       filename: req.file.originalname || req.file.filename,
-      totalRows: 0, highRisk: 0, mediumRisk: 0, lowRisk: 0,
-      anomalies: 0, uploadedBy: uploader
+      totalRows: 0, highRisk: 0, mediumRisk: 0, lowRisk: 0, anomalies: 0, uploadedBy: uploader
     });
     const currentUploadId = uploadRecord._id;
-
-    let high = 0, medium = 0, low = 0, anomalies = 0;
-    let summaryRows = [];
+    let high = 0, medium = 0, low = 0, anomalies = 0, summaryRows = [];
 
     for (let i = 0; i < dataLines.length; i += CHUNK) {
       const chunk   = dataLines.slice(i, i + CHUNK);
@@ -773,65 +659,43 @@ app.post("/upload", uploadLimiter, upload.single("file"), async (req, res) => {
           ? (policeRaw.toLowerCase() === "yes" || policeRaw === "1" || policeRaw.toLowerCase() === "true")
           : true;
         const p = predict({
-          amount:         parseFloat(g("amount"))          || 0,
-          claims:         parseFloat(g("claims"))          || 0,
-          age:            parseFloat(g("age"))             || 0,
-          policyDuration: parseFloat(g("policy_duration")) || 0,
-          incidentType:   g("incident_type")               || "unknown",
-          witnesses:      g("witnesses") !== null ? parseInt(g("witnesses")) : 1,
-          policeReport:   policeVal,
-          premiumAmount:  parseFloat(g("premium_amount"))  || 0,
-          vehicleAge:     parseFloat(g("vehicle_age"))     || 0,
-          location:       (g("location") || "").trim(),
+          amount: parseFloat(g("amount")) || 0, claims: parseFloat(g("claims")) || 0,
+          age: parseFloat(g("age")) || 0, policyDuration: parseFloat(g("policy_duration")) || 0,
+          incidentType: g("incident_type") || "unknown",
+          witnesses: g("witnesses") !== null ? parseInt(g("witnesses")) : 1,
+          policeReport: policeVal, premiumAmount: parseFloat(g("premium_amount")) || 0,
+          vehicleAge: parseFloat(g("vehicle_age")) || 0, location: (g("location") || "").trim(),
         });
         return {
-          amount: p.amount, claims: p.claims, age: p.age,
-          policyDuration: p.policyDuration, incidentType: p.incidentType,
-          witnesses: p.witnesses, policeReport: p.policeReport,
-          premiumAmount: p.premiumAmount, vehicleAge: p.vehicleAge,
-          risk: p.risk, confidence: p.confidence, riskScore: p.risk_score,
-          probabilities: p.probabilities,
+          amount: p.amount, claims: p.claims, age: p.age, policyDuration: p.policyDuration,
+          incidentType: p.incidentType, witnesses: p.witnesses, policeReport: p.policeReport,
+          premiumAmount: p.premiumAmount, vehicleAge: p.vehicleAge, risk: p.risk,
+          confidence: p.confidence, riskScore: p.risk_score, probabilities: p.probabilities,
           anomaly: { isAnomaly: p.anomaly.is_anomaly, anomalyScore: p.anomaly.anomaly_score },
-          location:  p.location || "",
-          flags: p.flags || [],
-          uploadId: currentUploadId
+          location: p.location || "", flags: p.flags || [], uploadId: currentUploadId
         };
       });
-
       results.forEach(r => {
-        if (r.risk === "High")   high++;
-        else if (r.risk === "Medium") medium++;
-        else low++;
+        if (r.risk === "High") high++; else if (r.risk === "Medium") medium++; else low++;
         if (r.anomaly?.isAnomaly) anomalies++;
       });
-
       await Result.insertMany(results, { ordered: false });
-
-      if (summaryRows.length < 500) {
-        summaryRows = summaryRows.concat(results.slice(0, 500 - summaryRows.length));
-      }
+      if (summaryRows.length < 500) summaryRows = summaryRows.concat(results.slice(0, 500 - summaryRows.length));
     }
 
     const totalRows = high + medium + low;
-
-    await UploadHistory.findByIdAndUpdate(currentUploadId, {
-      totalRows: totalRows, highRisk: high, mediumRisk: medium,
-      lowRisk: low, anomalies
-    });
+    await UploadHistory.findByIdAndUpdate(currentUploadId, { totalRows, highRisk: high, mediumRisk: medium, lowRisk: low, anomalies });
 
     const highRatioPct = totalRows ? (high / totalRows) * 100 : 0;
     const isGenerated  = req.body.generated === 'true';
-    const genParams    = isGenerated ? (() => { try { return JSON.parse(req.body.genParams||'{}'); } catch(e){return{};} })() : null;
+    const genParams    = isGenerated ? (() => { try { return JSON.parse(req.body.genParams || '{}'); } catch(e) { return {}; } })() : null;
 
     if (isGenerated) {
-      const genSev = genParams.fraud >= 30 ? "HIGH" : "MEDIUM";
-      await logEvent(genSev, "UPLOAD",
-        `Synthetic dataset generated & uploaded`,
-        `${uploader} generated ${totalRows.toLocaleString()} rows — fraud rate: ${genParams.fraud}%, profile: ${genParams.profile}, edge cases: ${genParams.addEdge}, high-risk found: ${high} (${highRatioPct.toFixed(1)}%)`,
-        uploader, req, { generated: true, size: totalRows, fraudRate: genParams.fraud, profile: genParams.profile, highRisk: high, anomalies });
+      await logEvent(genParams.fraud >= 30 ? "HIGH" : "MEDIUM", "UPLOAD", "Synthetic dataset uploaded",
+        `${uploader} generated ${totalRows.toLocaleString()} rows`, uploader, req, { generated: true, size: totalRows, highRisk: high, anomalies });
     } else if (highRatioPct >= 50) {
       await logEvent("HIGH", "UPLOAD", "Suspicious upload — high fraud ratio",
-        `${uploader} uploaded ${req.file.originalname}: ${highRatioPct.toFixed(1)}% high-risk records (${high}/${totalRows})`,
+        `${uploader} uploaded ${req.file.originalname}: ${highRatioPct.toFixed(1)}% high-risk`,
         uploader, req, { filename: req.file.originalname, highRisk: high, total: totalRows });
     } else if (anomalies > 0) {
       await logEvent("MEDIUM", "ANOMALY", "Anomalies detected in upload",
@@ -839,28 +703,111 @@ app.post("/upload", uploadLimiter, upload.single("file"), async (req, res) => {
         uploader, req, { anomalies, filename: req.file.originalname });
     } else {
       await logEvent("INFO", "UPLOAD", "Upload completed successfully",
-        `${uploader} uploaded ${req.file.originalname}: ${totalRows} rows processed`,
-        uploader, req, { filename: req.file.originalname, high, medium, low });
+        `${uploader} uploaded ${req.file.originalname}: ${totalRows} rows`, uploader, req, { filename: req.file.originalname, high, medium, low });
     }
 
     try { fs.unlinkSync(req.file.path); } catch(e) {}
     res.json(summaryRows);
   } catch (err) {
-    console.error("ML Batch Error:", err.message);
-    console.error("Stack:", err.stack);
-    await logEvent("HIGH", "UPLOAD", "ML batch processing failed",
-      `Error: ${err.message}`, uploader, req);
+    console.error("ML Batch Error:", err.message, err.stack);
+    await logEvent("HIGH", "UPLOAD", "ML batch processing failed", `Error: ${err.message}`, uploader, req);
     res.status(500).json({ error: "ML processing failed ❌: " + err.message });
+  }
+});
+
+/* ================= GENERATE DATA ================= */
+app.post("/generate-data", async (req, res) => {
+  try {
+    const { count = 10000, fraudRate = 30, uploadedBy = "admin" } = req.body;
+    const size  = Math.min(200000, Math.max(100, parseInt(count)));
+    const fraud = Math.min(100,    Math.max(0,   parseInt(fraudRate)));
+    const t0    = Date.now();
+
+    const CITIES = [
+      'Mumbai','Delhi','Bangalore','Hyderabad','Ahmedabad','Chennai','Kolkata',
+      'Pune','Jaipur','Lucknow','Surat','Nagpur','Indore','Bhopal','Patna',
+      'Vadodara','Ludhiana','Rajkot','Meerut','Varanasi','Noida','Gurugram',
+      'Chandigarh','Coimbatore','Guwahati','Raipur','Jodhpur','Madurai','Kota',
+      'Ranchi','Amritsar','Visakhapatnam','Aurangabad','Nashik','Thane','Mysuru',
+      'Vijayawada','Gwalior','Jabalpur','Agra'
+    ];
+
+    const rnd  = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+    const incidents = ['collision', 'theft', 'fire', 'other'];
+
+    const rows = [];
+    for (let i = 0; i < size; i++) {
+      if (Math.random() * 100 < fraud) {
+        rows.push({
+          amount: rnd(500000, 2000000), claims: rnd(10, 35), age: rnd(19, 30),
+          policyDuration: rnd(1, 6), incidentType: pick(['fire','theft']),
+          witnesses: 0, policeReport: false,
+          premiumAmount: rnd(15000, 50000), vehicleAge: rnd(10, 25), location: pick(CITIES)
+        });
+      } else {
+        rows.push({
+          amount: rnd(10000, 400000), claims: rnd(1, 8), age: rnd(30, 65),
+          policyDuration: rnd(24, 120), incidentType: pick(incidents),
+          witnesses: rnd(1, 3), policeReport: true,
+          premiumAmount: rnd(8000, 30000), vehicleAge: rnd(1, 10), location: pick(CITIES)
+        });
+      }
+    }
+
+    const { predict } = require("./predict_batch.js");
+    const CHUNK = 2000;
+    let high = 0, medium = 0, low = 0, anomalies = 0;
+
+    await Result.deleteMany({});
+    const uploadRecord = await UploadHistory.create({
+      filename: `generated_${size}_rows.csv`,
+      totalRows: 0, highRisk: 0, mediumRisk: 0, lowRisk: 0, anomalies: 0, uploadedBy
+    });
+
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const chunk   = rows.slice(i, i + CHUNK);
+      const results = chunk.map(r => {
+        const p = predict(r);
+        if (p.risk === "High") high++; else if (p.risk === "Medium") medium++; else low++;
+        if (p.anomaly?.is_anomaly) anomalies++;
+        return {
+          ...r,
+          risk: p.risk, confidence: p.confidence, riskScore: p.risk_score,
+          probabilities: p.probabilities,
+          anomaly: { isAnomaly: p.anomaly.is_anomaly, anomalyScore: p.anomaly.anomaly_score },
+          flags: p.flags || [], uploadId: uploadRecord._id
+        };
+      });
+      await Result.insertMany(results, { ordered: false });
+    }
+
+    await UploadHistory.findByIdAndUpdate(uploadRecord._id, {
+      totalRows: size, highRisk: high, mediumRisk: medium, lowRisk: low, anomalies
+    });
+
+    const elapsed = Date.now() - t0;
+    await logEvent("INFO", "UPLOAD", "Synthetic data generated",
+      `${uploadedBy} generated ${size.toLocaleString()} rows at ${fraud}% fraud rate`,
+      uploadedBy, req, { size, fraudRate: fraud, high, medium, low, anomalies });
+
+    res.json({
+      message:     "Generated successfully ✅",
+      stats:       { totalRows: size, high, medium, low, anomalies },
+      performance: { elapsed, rowsPerSec: Math.round(size / (elapsed / 1000)) }
+    });
+  } catch (err) {
+    console.error("Generate error:", err);
+    res.status(500).json({ error: "Generation failed: " + err.message });
   }
 });
 
 /* ================= HEALTH CHECK ================= */
 app.get("/health", (req, res) => {
-  const dbState = mongoose.connection.readyState;
+  const dbState  = mongoose.connection.readyState;
   const dbStatus = { 0:"disconnected", 1:"connected", 2:"connecting", 3:"disconnecting" }[dbState] || "unknown";
   res.status(dbState === 1 ? 200 : 503).json({
-    status: dbState === 1 ? "ok" : "degraded",
-    db: dbStatus,
+    status: dbState === 1 ? "ok" : "degraded", db: dbStatus,
     uptime: Math.floor(process.uptime()) + "s",
     memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + "MB",
     timestamp: new Date().toISOString()
