@@ -1,450 +1,325 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <script>
-    (function() {
-      var t = localStorage.getItem('theme') || 'dark';
-      document.documentElement.setAttribute('data-theme', t);
-    })();
-  </script>
-  <title>FraudSys — Login</title>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700;900&family=Rajdhani:wght@400;600;700&display=swap');
-    :root{--bg:#020d0a;--panel:#040f0c;--border:#0a2a1f;--cyan:#00ffc8;--red:#ff2d6b;--muted:#2a5a48;--text:#a0d4c0;}
-    *{box-sizing:border-box;margin:0;padding:0;}
-    body{background:var(--bg);font-family:'Rajdhani',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;}
-    
-    /* Three.js canvas background */
-    #bg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;}
-    
-    body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.07) 2px,rgba(0,0,0,0.07) 4px);pointer-events:none;z-index:1;}
-    
-    .login-box{position:relative;z-index:20;width:440px;background:rgba(4,15,12,0.92);border:1px solid var(--border);padding:48px 40px;backdrop-filter:blur(10px);opacity:0;transform:translateY(30px);}
-    .login-box::before{content:'';position:absolute;top:-1px;left:-1px;width:16px;height:16px;border-top:2px solid var(--cyan);border-left:2px solid var(--cyan);box-shadow:0 0 10px var(--cyan);}
-    .login-box::after{content:'';position:absolute;bottom:-1px;right:-1px;width:16px;height:16px;border-bottom:2px solid var(--cyan);border-right:2px solid var(--cyan);box-shadow:0 0 10px var(--cyan);}
-    .logo{font-family:'Orbitron',monospace;font-size:1.8rem;font-weight:900;color:var(--cyan);text-shadow:0 0 20px var(--cyan);letter-spacing:4px;margin-bottom:4px;opacity:0;}
-    .logo-sub{font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:3px;margin-bottom:28px;opacity:0;}
-    .step-indicator{font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--muted);letter-spacing:2px;margin-bottom:24px;display:flex;gap:8px;align-items:center;}
-    .step{padding:3px 8px;border:1px solid var(--border);font-size:0.55rem;white-space:nowrap;}
-    .step.active{border-color:var(--cyan);color:var(--cyan);}
-    .step.done{border-color:var(--muted);color:var(--muted);text-decoration:line-through;}
-    label{display:block;font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:2px;margin-bottom:6px;}
-    input{width:100%;background:rgba(0,0,0,0.4);border:1px solid var(--border);color:var(--text);padding:11px 14px;font-family:'Share Tech Mono',monospace;font-size:0.8rem;letter-spacing:1px;outline:none;margin-bottom:20px;transition:border 0.2s;}
-    input:focus{border-color:var(--cyan);box-shadow:0 0 0 1px rgba(0,255,200,0.2);}
-    .otp-input{font-size:1.5rem;letter-spacing:12px;text-align:center;padding:16px;}
-    .btn{width:100%;background:transparent;border:1px solid var(--cyan);color:var(--cyan);font-family:'Orbitron',monospace;font-size:0.75rem;font-weight:700;letter-spacing:3px;padding:12px;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden;}
-    .btn::after{content:'';position:absolute;top:50%;left:50%;width:0;height:0;background:rgba(0,255,200,0.15);border-radius:50%;transform:translate(-50%,-50%);transition:width 0.4s,height 0.4s;}
-    .btn:hover::after{width:300px;height:300px;}
-    .btn:hover{box-shadow:0 0 20px rgba(0,255,200,0.3),inset 0 0 20px rgba(0,255,200,0.05);}
-    .btn:disabled{opacity:0.4;cursor:not-allowed;}
-    .divider{display:flex;align-items:center;gap:12px;margin:24px 0;}
-    .divider-line{flex:1;height:1px;background:var(--border);}
-    .divider-text{font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--muted);letter-spacing:2px;white-space:nowrap;}
-    .btn-google{width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--border);color:var(--text);font-family:'Rajdhani',sans-serif;font-size:0.9rem;font-weight:600;letter-spacing:1px;padding:11px 16px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;transition:all 0.2s;}
-    .btn-google:hover{border-color:rgba(0,255,200,0.4);background:rgba(0,255,200,0.05);}
-    .footer-link{text-align:center;margin-top:24px;font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--muted);letter-spacing:1px;}
-    .footer-link a{color:var(--cyan);text-decoration:none;}
-    .msg{font-family:'Share Tech Mono',monospace;font-size:0.7rem;letter-spacing:1px;margin-top:-12px;margin-bottom:16px;display:none;}
-    .msg.error{color:var(--red);}
-    .msg.success{color:var(--cyan);}
-    .hint-box{font-family:'Share Tech Mono',monospace;font-size:0.62rem;color:var(--muted);text-align:center;margin-bottom:16px;line-height:1.8;padding:12px;border:1px solid var(--border);background:rgba(0,0,0,0.2);}
-    .hint-box strong{color:var(--cyan);}
-    .back-btn{background:none;border:none;color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:0.62rem;cursor:pointer;text-decoration:underline;margin-top:10px;display:block;width:100%;text-align:center;}
-    .back-btn:hover{color:var(--cyan);}
-    .qr-wrapper{text-align:center;margin:12px 0;}
-    .qr-wrapper img{border:2px solid var(--cyan);padding:8px;background:#fff;}
-    .secret-box{font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--muted);word-break:break-all;padding:10px;border:1px solid var(--border);background:rgba(0,0,0,0.3);margin-bottom:16px;text-align:center;cursor:pointer;}
-    .secret-box span{color:var(--cyan);}
-    .mandatory-badge{display:inline-block;background:rgba(255,45,107,0.1);border:1px solid var(--red);color:var(--red);font-family:'Share Tech Mono',monospace;font-size:0.55rem;letter-spacing:2px;padding:3px 8px;margin-bottom:14px;}
-    html[data-theme="light"]{--bg:#f0f4f2;--panel:#ffffff;--border:#c8ddd6;--cyan:#007a5e;--red:#d4003a;--muted:#7aaa96;--text:#2a5a48;}
-    .theme-btn{position:fixed;top:16px;right:16px;z-index:999;background:transparent;border:1px solid var(--border);color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:1px;padding:6px 12px;cursor:pointer;transition:all 0.2s;}
-    .theme-btn:hover{border-color:var(--cyan);color:var(--cyan);}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FraudSys — Login</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#020d0a;color:#c8e6dc;font-family:'Rajdhani',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  canvas{position:fixed;inset:0;z-index:0}
+  .scanline{position:fixed;inset:0;pointer-events:none;z-index:1;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,200,0.012) 2px,rgba(0,255,200,0.012) 4px)}
+  .wrap{position:relative;z-index:2;width:100%;max-width:400px;padding:20px}
+  .logo-area{text-align:center;margin-bottom:32px}
+  .logo{font-family:'Orbitron',monospace;font-size:2rem;font-weight:900;color:#00ffc8;letter-spacing:6px;text-shadow:0 0 30px rgba(0,255,200,0.5)}
+  .logo-sub{font-family:'Share Tech Mono',monospace;font-size:0.52rem;letter-spacing:3px;color:#4a7a70;margin-top:4px}
+  .panel{background:#041a12;border:1px solid #0a3a28;padding:32px}
+  .tabs{display:flex;margin-bottom:28px;border-bottom:1px solid #0a3a28}
+  .tab{flex:1;padding:10px;text-align:center;font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:2px;color:#4a7a70;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s}
+  .tab.active{color:#00ffc8;border-bottom-color:#00ffc8}
+  .form{display:none}
+  .form.active{display:block}
+  .field{margin-bottom:18px}
+  .field label{display:block;font-family:'Share Tech Mono',monospace;font-size:0.52rem;letter-spacing:2px;color:#4a7a70;margin-bottom:7px}
+  .field input,.field select{width:100%;padding:10px 12px;background:#020d0a;border:1px solid #0a3a28;color:#c8e6dc;font-family:'Rajdhani',sans-serif;font-size:0.9rem;outline:none;transition:border-color 0.2s}
+  .field input:focus,.field select:focus{border-color:#00ffc8}
+  .field select option{background:#041a12}
+  .submit-btn{width:100%;padding:12px;background:transparent;border:1px solid #00ffc8;color:#00ffc8;font-family:'Orbitron',monospace;font-size:0.65rem;font-weight:700;letter-spacing:3px;cursor:pointer;transition:all 0.2s;margin-top:4px}
+  .submit-btn:hover{background:rgba(0,255,200,0.1);box-shadow:0 0 20px rgba(0,255,200,0.2)}
+  .submit-btn:disabled{opacity:0.4;cursor:not-allowed}
+  .divider{display:flex;align-items:center;gap:12px;margin:20px 0}
+  .divider::before,.divider::after{content:'';flex:1;height:1px;background:#0a3a28}
+  .divider span{font-family:'Share Tech Mono',monospace;font-size:0.5rem;color:#4a7a70;letter-spacing:2px}
+  .google-btn{width:100%;padding:11px;background:transparent;border:1px solid #0a3a28;color:#c8e6dc;font-family:'Rajdhani',sans-serif;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:10px}
+  .google-btn:hover{border-color:#4a7a70;background:rgba(255,255,255,0.03)}
+  .msg{font-family:'Share Tech Mono',monospace;font-size:0.58rem;letter-spacing:1px;padding:8px 12px;margin-top:14px;display:none}
+  .msg.error{border:1px solid #ff2d6b;color:#ff2d6b;background:rgba(255,45,107,0.06)}
+  .msg.success{border:1px solid #00cc88;color:#00cc88;background:rgba(0,204,136,0.06)}
+  /* TOTP step */
+  #totpStep,#setupStep{display:none}
+  .totp-code-input{text-align:center;font-size:1.6rem;letter-spacing:8px;font-family:'Orbitron',monospace}
+  .back-link{font-family:'Share Tech Mono',monospace;font-size:0.54rem;color:#4a7a70;cursor:pointer;text-align:center;margin-top:12px;display:block}
+  .back-link:hover{color:#00ffc8}
+  .step-title{font-family:'Orbitron',monospace;font-size:0.7rem;letter-spacing:2px;color:#00ffc8;margin-bottom:8px}
+  .step-desc{font-family:'Share Tech Mono',monospace;font-size:0.54rem;color:#4a7a70;margin-bottom:20px;line-height:1.6}
+</style>
 </head>
 <body>
+<canvas id="bg"></canvas>
+<div class="scanline"></div>
 
-<canvas id="bg-canvas"></canvas>
-
-<div id="g_id_onload"
-  data-client_id="141579954551-r6q36pitk0e2ob17632bggvumtebhv02.apps.googleusercontent.com"
-  data-callback="handleGoogleCredential"
-  data-auto_prompt="false">
-</div>
-
-<div class="login-box" id="loginBox">
-  <div class="logo" id="logoText">FRAUDSYS</div>
-  <div class="logo-sub" id="logoSub">// THREAT INTELLIGENCE PLATFORM</div>
-
-  <div class="step-indicator">
-    <span class="step active" id="badge1">STEP 1: CREDENTIALS</span>
-    <span style="color:var(--border)">→</span>
-    <span class="step" id="badge2">STEP 2: AUTHENTICATOR</span>
+<div class="wrap">
+  <div class="logo-area">
+    <div class="logo">FRAUDSYS</div>
+    <div class="logo-sub">// THREAT INTELLIGENCE PLATFORM</div>
   </div>
 
-  <div id="step1">
-    <label>EMAIL ADDRESS</label>
-    <input type="email" id="email" placeholder="operative@fraudsys.io" />
-    <label>ACCESS CODE</label>
-    <input type="password" id="password" placeholder="••••••••••••"
-      onkeydown="if(event.key==='Enter') login()" />
-    <div id="msg1" class="msg error"></div>
-    <button class="btn" id="loginBtn" onclick="login()">⬡ AUTHENTICATE</button>
-    <div class="divider">
-      <div class="divider-line"></div>
-      <div class="divider-text">OR CONTINUE WITH</div>
-      <div class="divider-line"></div>
-    </div>
-    <button class="btn-google" onclick="google.accounts.id.prompt()">
-      <svg width="18" height="18" viewBox="0 0 24 24">
-        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-      </svg>
-      SIGN IN WITH GOOGLE
-    </button>
-    <div class="footer-link">NO ACCOUNT? <a href="register.html">REQUEST ACCESS</a></div>
-  </div>
-
-  <div id="step2totp" style="display:none">
-    <div class="hint-box">
-      Open <strong>Google Authenticator</strong> and enter<br>
-      the 6-digit code for<br>
-      <strong id="totpLoginEmail"></strong>
-    </div>
-    <label>AUTHENTICATOR CODE</label>
-    <input type="text" id="totpLoginInput" class="otp-input" placeholder="000000"
-      maxlength="6" oninput="this.value=this.value.replace(/[^0-9]/g,'')"
-      onkeydown="if(event.key==='Enter') verifyTOTPLogin()" />
-    <div id="msgTOTPLogin" class="msg error"></div>
-    <button class="btn" id="totpLoginBtn" onclick="verifyTOTPLogin()">⬡ VERIFY &amp; ENTER</button>
-    <button class="back-btn" onclick="goBack()">← Back</button>
-  </div>
-
-  <div id="step2setup" style="display:none">
-    <div class="mandatory-badge">⚠ MANDATORY — REQUIRED TO ACCESS SYSTEM</div>
-    <div class="hint-box">
-      All accounts must have <strong>Google Authenticator</strong> enabled.<br>
-      Complete setup below to access the dashboard.
-    </div>
-    <div id="setupLoading" style="text-align:center;padding:16px;font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--muted)">
-      // GENERATING QR CODE...
-    </div>
-    <div id="setupQR" style="display:none">
-      <div style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--muted);margin-bottom:10px;line-height:1.9">
-        1. Install <strong style="color:var(--cyan)">Google Authenticator</strong> on your phone<br>
-        2. Tap <strong style="color:var(--cyan)">+</strong> → <strong style="color:var(--cyan)">Scan a QR code</strong><br>
-        3. Enter the 6-digit code shown in the app
+  <div class="panel">
+    <!-- Login / Register tabs -->
+    <div id="authTabs">
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('login')">LOGIN</div>
+        <div class="tab" onclick="switchTab('register')">REGISTER</div>
       </div>
-      <div class="qr-wrapper"><img id="setupQRImg" src="" width="180" height="180" /></div>
-      <div class="secret-box" onclick="copySecret()" title="Click to copy">
-        Manual key: <span id="setupSecret"></span><br>
-        <span style="font-size:0.5rem;opacity:0.6">click to copy</span>
+
+      <!-- LOGIN FORM -->
+      <div class="form active" id="loginForm">
+        <div class="field">
+          <label>EMAIL ADDRESS</label>
+          <input type="email" id="loginEmail" placeholder="analyst@fraudsys.com">
+        </div>
+        <div class="field">
+          <label>PASSWORD</label>
+          <input type="password" id="loginPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+        </div>
+        <button class="submit-btn" onclick="doLogin()" id="loginBtn">AUTHENTICATE</button>
+        <div class="divider"><span>OR</span></div>
+        <div id="googleSignIn"></div>
+        <div class="msg" id="loginMsg"></div>
       </div>
-      <label>ENTER 6-DIGIT CODE TO CONFIRM</label>
-      <input type="text" id="setupTOTPInput" class="otp-input" placeholder="000000"
-        maxlength="6" oninput="this.value=this.value.replace(/[^0-9]/g,'')"
-        onkeydown="if(event.key==='Enter') confirmSetup()" />
-      <div id="msgSetup" class="msg error"></div>
-      <button class="btn" id="setupConfirmBtn" onclick="confirmSetup()">✓ ACTIVATE &amp; ENTER DASHBOARD</button>
+
+      <!-- REGISTER FORM -->
+      <div class="form" id="registerForm">
+        <div class="field">
+          <label>EMAIL ADDRESS</label>
+          <input type="email" id="regEmail" placeholder="you@example.com">
+        </div>
+        <div class="field">
+          <label>PASSWORD</label>
+          <input type="password" id="regPass" placeholder="min 6 characters">
+        </div>
+        <div class="field">
+          <label>ROLE</label>
+          <select id="regRole">
+            <option value="analyst">Analyst</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <button class="submit-btn" onclick="doRegister()">CREATE ACCOUNT</button>
+        <div class="msg" id="regMsg"></div>
+      </div>
+    </div>
+
+    <!-- TOTP VERIFY STEP -->
+    <div id="totpStep">
+      <div class="step-title">2FA VERIFICATION</div>
+      <div class="step-desc">Enter the 6-digit code from your<br>Google Authenticator app</div>
+      <div class="field">
+        <label>AUTHENTICATOR CODE</label>
+        <input type="text" id="totpCode" class="totp-code-input" maxlength="6" placeholder="000000" inputmode="numeric" onkeydown="if(event.key==='Enter')doVerifyTOTP()">
+      </div>
+      <button class="submit-btn" onclick="doVerifyTOTP()">VERIFY & LOGIN</button>
+      <span class="back-link" onclick="resetToLogin()">← Back to login</span>
+      <div class="msg" id="totpMsg"></div>
+    </div>
+
+    <!-- TOTP SETUP STEP (first login) -->
+    <div id="setupStep">
+      <div class="step-title">SETUP 2FA</div>
+      <div class="step-desc">Scan the QR code with Google Authenticator,<br>then enter the code to activate.</div>
+      <div id="qrContainer" style="text-align:center;margin-bottom:16px"></div>
+      <div id="secretDisplay" style="font-family:'Share Tech Mono',monospace;font-size:0.54rem;color:#4a7a70;text-align:center;margin-bottom:16px;word-break:break-all"></div>
+      <div class="field">
+        <label>ENTER CODE TO ACTIVATE</label>
+        <input type="text" id="setupCode" class="totp-code-input" maxlength="6" placeholder="000000" inputmode="numeric" onkeydown="if(event.key==='Enter')doEnableTOTP()">
+      </div>
+      <button class="submit-btn" onclick="doEnableTOTP()">ACTIVATE AUTHENTICATOR</button>
+      <div class="msg" id="setupMsg"></div>
     </div>
   </div>
 </div>
 
-<button class="theme-btn" onclick="toggleTheme()" id="themeBtnLogin">☀ LIGHT</button>
-
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
-  // ══════════════════════════════════════════
-  // THREE.JS PARTICLE NETWORK BACKGROUND
-  // ══════════════════════════════════════════
-  (function initThreeBackground() {
-    const canvas = document.getElementById('bg-canvas');
-    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(window.innerWidth, window.innerHeight);
+const GOOGLE_CLIENT_ID = "141579954551-r6q36pitk0e2ob17632bggvumtebhv02.apps.googleusercontent.com";
+let pendingEmail = "";
+let tempToken    = "";
 
-    const scene  = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.z = 80;
-
-    // Create particles
-    const PARTICLE_COUNT = 180;
-    const positions = new Float32Array(PARTICLE_COUNT * 3);
-    const particles = [];
-
-    for (let i = 0; i < PARTICLE_COUNT; i++) {
-      const x = (Math.random() - 0.5) * 200;
-      const y = (Math.random() - 0.5) * 120;
-      const z = (Math.random() - 0.5) * 80;
-      positions[i * 3]     = x;
-      positions[i * 3 + 1] = y;
-      positions[i * 3 + 2] = z;
-      particles.push({ x, y, z, vx: (Math.random()-0.5)*0.08, vy: (Math.random()-0.5)*0.05 });
-    }
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
-    const material = new THREE.PointsMaterial({
-      color: 0x00ffc8, size: 0.8, transparent: true, opacity: 0.7, sizeAttenuation: true
-    });
-
-    const points = new THREE.Points(geometry, material);
-    scene.add(points);
-
-    // Line connections
-    const lineMat = new THREE.LineBasicMaterial({ color: 0x00ffc8, transparent: true, opacity: 0.08 });
-    const lineGroup = new THREE.Group();
-    scene.add(lineGroup);
-
-    function updateLines() {
-      while (lineGroup.children.length) lineGroup.remove(lineGroup.children[0]);
-      const MAX_DIST = 28;
-      for (let i = 0; i < PARTICLE_COUNT; i++) {
-        for (let j = i + 1; j < PARTICLE_COUNT; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dz = particles[i].z - particles[j].z;
-          const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-          if (dist < MAX_DIST) {
-            const geo = new THREE.BufferGeometry().setFromPoints([
-              new THREE.Vector3(particles[i].x, particles[i].y, particles[i].z),
-              new THREE.Vector3(particles[j].x, particles[j].y, particles[j].z)
-            ]);
-            const opacity = (1 - dist / MAX_DIST) * 0.15;
-            const mat = new THREE.LineBasicMaterial({ color: 0x00ffc8, transparent: true, opacity });
-            lineGroup.add(new THREE.Line(geo, mat));
-          }
-        }
-      }
-    }
-
-    let frame = 0;
-    function animate() {
-      requestAnimationFrame(animate);
-      frame++;
-
-      for (let i = 0; i < PARTICLE_COUNT; i++) {
-        particles[i].x += particles[i].vx;
-        particles[i].y += particles[i].vy;
-        if (Math.abs(particles[i].x) > 100) particles[i].vx *= -1;
-        if (Math.abs(particles[i].y) > 60)  particles[i].vy *= -1;
-        positions[i * 3]     = particles[i].x;
-        positions[i * 3 + 1] = particles[i].y;
-      }
-      geometry.attributes.position.needsUpdate = true;
-
-      // Update lines every 3 frames for performance
-      if (frame % 3 === 0) updateLines();
-
-      points.rotation.y += 0.0005;
-      renderer.render(scene, camera);
-    }
-    animate();
-
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-  })();
-
-  // ══════════════════════════════════════════
-  // GSAP LOGIN BOX ENTRANCE ANIMATION
-  // ══════════════════════════════════════════
-  window.addEventListener('load', () => {
-    const tl = gsap.timeline();
-    tl.to('#loginBox',  { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' })
-      .to('#logoText',  { opacity: 1, duration: 0.5, ease: 'power2.out' }, '-=0.4')
-      .to('#logoSub',   { opacity: 1, duration: 0.4, ease: 'power2.out' }, '-=0.2');
+/* ── Three.js particle background ── */
+(function(){
+  const canvas = document.getElementById("bg");
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  const scene  = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+  camera.position.z = 5;
+  const geo  = new THREE.BufferGeometry();
+  const count = 800;
+  const pos  = new Float32Array(count * 3);
+  for(let i=0;i<count*3;i++) pos[i]=(Math.random()-0.5)*20;
+  geo.setAttribute("position", new THREE.BufferAttribute(pos,3));
+  const mat  = new THREE.PointsMaterial({ color:0x00ffc8, size:0.04, transparent:true, opacity:0.6 });
+  const pts  = new THREE.Points(geo, mat);
+  scene.add(pts);
+  window.addEventListener("resize",()=>{
+    renderer.setSize(window.innerWidth,window.innerHeight);
+    camera.aspect=window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
   });
-
-  // ══════════════════════════════════════════
-  // LOGIN LOGIC
-  // ══════════════════════════════════════════
-  let pendingEmail = "";
-  let pendingToken = "";
-
-  function show(id) { document.getElementById(id).style.display = 'block'; }
-  function hide(id) { document.getElementById(id).style.display = 'none'; }
-  function markActive(id) { document.getElementById(id).className = 'step active'; }
-  function markDone(id)   { document.getElementById(id).className = 'step done'; }
-  function showMsg(id, txt) {
-    const el = document.getElementById(id);
-    el.textContent = txt; el.style.display = 'block'; el.className = 'msg error';
-    gsap.from(el, { x: -8, duration: 0.3, ease: 'power2.out' });
-  }
-
-  async function login() {
-    const email    = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
-    const btn      = document.getElementById("loginBtn");
-    if (!email || !password) { showMsg("msg1", "Fill in all fields ❌"); return; }
-    btn.disabled = true; btn.textContent = "// AUTHENTICATING...";
-    try {
-      const res  = await fetch("/login", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ email, password }) });
-      const data = await res.json();
-      if (res.ok && data.requiresTOTP) {
-        pendingEmail = email;
-        showTOTPLogin(email);
-      } else if (res.ok && data.requiresTOTPSetup) {
-        pendingEmail = data.email;
-        pendingToken = data.token;
-        localStorage.setItem('_pendingRole', data.role);
-        showTOTPSetup();
-      } else {
-        showMsg("msg1", data.error || "Login failed ❌");
-        btn.disabled = false; btn.textContent = "⬡ AUTHENTICATE";
-      }
-    } catch(e) {
-      showMsg("msg1", "Server error ❌");
-      btn.disabled = false; btn.textContent = "⬡ AUTHENTICATE";
-    }
-  }
-
-  function showTOTPLogin(email) {
-    gsap.to('#step1', { opacity: 0, y: -10, duration: 0.3, onComplete: () => {
-      hide('step1'); show('step2totp');
-      gsap.from('#step2totp', { opacity: 0, y: 10, duration: 0.4 });
-    }});
-    markDone('badge1'); markActive('badge2');
-    document.getElementById("totpLoginEmail").textContent = email;
-    document.getElementById("totpLoginInput").focus();
-  }
-
-  async function verifyTOTPLogin() {
-    const token = document.getElementById("totpLoginInput").value.trim();
-    const btn   = document.getElementById("totpLoginBtn");
-    if (token.length !== 6) { showMsg("msgTOTPLogin", "Enter 6-digit code ❌"); return; }
-    btn.disabled = true; btn.textContent = "// VERIFYING...";
-    try {
-      const res  = await fetch("/verify-totp", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ email: pendingEmail, token }) });
-      const data = await res.json();
-      if (res.ok) {
-        gsap.to('#loginBox', { scale: 1.02, opacity: 0, duration: 0.4, onComplete: () => finalizeLogin(data) });
-      } else {
-        showMsg("msgTOTPLogin", data.error || "Invalid code ❌");
-        btn.disabled = false; btn.textContent = "⬡ VERIFY & ENTER";
-        document.getElementById("totpLoginInput").value = "";
-        document.getElementById("totpLoginInput").focus();
-      }
-    } catch(e) {
-      showMsg("msgTOTPLogin", "Server error ❌");
-      btn.disabled = false; btn.textContent = "⬡ VERIFY & ENTER";
-    }
-  }
-
-  function showTOTPSetup() {
-    hide('step1'); hide('step2totp'); show('step2setup');
-    gsap.from('#step2setup', { opacity: 0, y: 10, duration: 0.4 });
-    markDone('badge1'); markActive('badge2');
-    document.getElementById('badge2').textContent = 'STEP 2: SETUP AUTHENTICATOR';
-    loadSetupQR();
-  }
-
-  async function loadSetupQR() {
-    try {
-      const res  = await fetch("/setup-totp", {
-        method: "POST",
-        headers: { "Content-Type":"application/json", "Authorization":"Bearer " + pendingToken },
-        body: JSON.stringify({ email: pendingEmail })
-      });
-      const data = await res.json();
-      document.getElementById("setupQRImg").src = data.qrCode;
-      document.getElementById("setupSecret").textContent = data.secret;
-      hide('setupLoading'); show('setupQR');
-      gsap.from('#setupQR', { opacity: 0, y: 10, duration: 0.4 });
-      document.getElementById("setupTOTPInput").focus();
-    } catch(e) {
-      document.getElementById("setupLoading").textContent = "// FAILED — REFRESH AND TRY AGAIN";
-    }
-  }
-
-  async function confirmSetup() {
-    const token = document.getElementById("setupTOTPInput").value.trim();
-    const btn   = document.getElementById("setupConfirmBtn");
-    if (token.length !== 6) { showMsg("msgSetup", "Enter 6-digit code ❌"); return; }
-    btn.disabled = true; btn.textContent = "// ACTIVATING...";
-    try {
-      const res  = await fetch("/enable-totp", {
-        method: "POST",
-        headers: { "Content-Type":"application/json", "Authorization":"Bearer " + pendingToken },
-        body: JSON.stringify({ email: pendingEmail, token })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        gsap.to('#loginBox', { scale: 1.02, opacity: 0, duration: 0.4,
-          onComplete: () => finalizeLogin({ token: pendingToken, role: localStorage.getItem('_pendingRole'), email: pendingEmail, avatar: '', name: '' })
-        });
-      } else {
-        showMsg("msgSetup", data.error || "Invalid code — try again ❌");
-        btn.disabled = false; btn.textContent = "✓ ACTIVATE & ENTER DASHBOARD";
-        document.getElementById("setupTOTPInput").value = "";
-        document.getElementById("setupTOTPInput").focus();
-      }
-    } catch(e) {
-      showMsg("msgSetup", "Server error ❌");
-      btn.disabled = false; btn.textContent = "✓ ACTIVATE & ENTER DASHBOARD";
-    }
-  }
-
-  function copySecret() {
-    navigator.clipboard.writeText(document.getElementById("setupSecret").textContent)
-      .then(() => alert("Secret key copied ✅"));
-  }
-
-  async function handleGoogleCredential(response) {
-    try {
-      const res  = await fetch("/auth/google", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ credential: response.credential }) });
-      const data = await res.json();
-      if (res.ok) {
-        pendingEmail = data.email;
-        pendingToken = data.token;
-        localStorage.setItem('_pendingRole', data.role);
-        const sr = await fetch("/totp-status?email=" + encodeURIComponent(data.email));
-        const sd = await sr.json();
-        if (sd.totpEnabled) { finalizeLogin(data); } else { showTOTPSetup(); }
-      } else {
-        showMsg("msg1", data.error || "Google login failed ❌");
-      }
-    } catch(e) { showMsg("msg1", "Server error ❌"); }
-  }
-
-  function finalizeLogin(data) {
-    localStorage.setItem("token",  data.token);
-    localStorage.setItem("role",   data.role || localStorage.getItem('_pendingRole'));
-    localStorage.setItem("email",  data.email);
-    localStorage.setItem("avatar", data.avatar || "");
-    localStorage.setItem("name",   data.name   || "");
-    window.location.href = "index.html";
-  }
-
-  function goBack() {
-    gsap.to('#step2totp', { opacity: 0, y: -10, duration: 0.3, onComplete: () => {
-      hide('step2totp'); show('step1');
-      gsap.from('#step1', { opacity: 0, y: 10, duration: 0.4 });
-    }});
-    markActive('badge1');
-    document.getElementById('badge2').className = 'step';
-    document.getElementById('badge2').textContent = 'STEP 2: AUTHENTICATOR';
-  }
-
-  function toggleTheme() {
-    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
-    localStorage.setItem('theme', isDark ? 'light' : 'dark');
-    document.getElementById('themeBtnLogin').textContent = isDark ? '☾ DARK' : '☀ LIGHT';
-  }
-  (function() {
-    const saved = localStorage.getItem('theme') || 'dark';
-    document.documentElement.setAttribute('data-theme', saved);
-    const btn = document.getElementById('themeBtnLogin');
-    if (btn) btn.textContent = saved === 'light' ? '☾ DARK' : '☀ LIGHT';
+  (function animate(){
+    requestAnimationFrame(animate);
+    pts.rotation.y += 0.0008;
+    pts.rotation.x += 0.0003;
+    renderer.render(scene,camera);
   })();
+})();
+
+/* ── Google Sign-In ── */
+window.onload = () => {
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleGoogleLogin
+  });
+  google.accounts.id.renderButton(document.getElementById("googleSignIn"), {
+    theme: "filled_black", size: "large", width: "100%", text: "signin_with_google"
+  });
+};
+
+async function handleGoogleLogin(resp) {
+  const res = await fetch("/auth/google", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ credential: resp.credential, role: "analyst" })
+  });
+  const data = await res.json();
+  if (res.ok) {
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("role",  data.role);
+    localStorage.setItem("email", data.email);
+    window.location.href = "/index.html";
+  } else {
+    showMsg("loginMsg", data.error || "Google login failed", "error");
+  }
+}
+
+/* ── Tab switching ── */
+function switchTab(tab) {
+  document.querySelectorAll(".tab").forEach((t,i)=> t.classList.toggle("active", (i===0&&tab==="login")||(i===1&&tab==="register")));
+  document.getElementById("loginForm").classList.toggle("active",    tab==="login");
+  document.getElementById("registerForm").classList.toggle("active", tab==="register");
+}
+
+/* ── Show/hide steps ── */
+function showStep(step) {
+  document.getElementById("authTabs").style.display  = step==="auth"   ? "block" : "none";
+  document.getElementById("totpStep").style.display  = step==="totp"   ? "block" : "none";
+  document.getElementById("setupStep").style.display = step==="setup"  ? "block" : "none";
+}
+
+function resetToLogin() {
+  pendingEmail = ""; tempToken = "";
+  showStep("auth");
+}
+
+/* ── Msg helper ── */
+function showMsg(id, text, type="error") {
+  const el = document.getElementById(id);
+  el.textContent = text; el.className = "msg " + type; el.style.display = "block";
+}
+
+/* ── LOGIN ── */
+async function doLogin() {
+  const email    = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPass").value;
+  if (!email || !password) return showMsg("loginMsg","Fill in all fields","error");
+  document.getElementById("loginBtn").disabled = true;
+  document.getElementById("loginBtn").textContent = "AUTHENTICATING...";
+  try {
+    const res  = await fetch("/login", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email,password}) });
+    const data = await res.json();
+    if (!res.ok) { showMsg("loginMsg", data.error || "Login failed", "error"); return; }
+
+    pendingEmail = email;
+
+    if (data.requiresTOTP) {
+      showStep("totp");
+    } else if (data.requiresTOTPSetup) {
+      tempToken = data.token;
+      await setupTOTP(email);
+    } else {
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("role",  data.role);
+      localStorage.setItem("email", data.email);
+      window.location.href = "/index.html";
+    }
+  } catch(e) {
+    showMsg("loginMsg","Network error — try again","error");
+  } finally {
+    document.getElementById("loginBtn").disabled = false;
+    document.getElementById("loginBtn").textContent = "AUTHENTICATE";
+  }
+}
+
+/* ── VERIFY TOTP ── */
+async function doVerifyTOTP() {
+  const token = document.getElementById("totpCode").value.replace(/\s/g,"");
+  if (token.length !== 6) return showMsg("totpMsg","Enter 6-digit code","error");
+  const res  = await fetch("/verify-totp", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email:pendingEmail,token}) });
+  const data = await res.json();
+  if (res.ok) {
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("role",  data.role);
+    localStorage.setItem("email", data.email);
+    window.location.href = "/index.html";
+  } else {
+    showMsg("totpMsg", data.error || "Invalid code","error");
+  }
+}
+
+/* ── SETUP TOTP ── */
+async function setupTOTP(email) {
+  const res  = await fetch("/setup-totp", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email}) });
+  const data = await res.json();
+  if (res.ok) {
+    document.getElementById("qrContainer").innerHTML = `<img src="${data.qrCode}" style="width:180px;border:2px solid #0a3a28">`;
+    document.getElementById("secretDisplay").textContent = "Secret: " + data.secret;
+    showStep("setup");
+  } else {
+    showMsg("loginMsg", data.error || "TOTP setup failed","error");
+  }
+}
+
+/* ── ENABLE TOTP ── */
+async function doEnableTOTP() {
+  const token = document.getElementById("setupCode").value.replace(/\s/g,"");
+  if (token.length !== 6) return showMsg("setupMsg","Enter 6-digit code","error");
+  const res  = await fetch("/enable-totp", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email:pendingEmail,token}) });
+  const data = await res.json();
+  if (res.ok) {
+    showMsg("setupMsg","Authenticator activated! Logging in...","success");
+    setTimeout(async ()=>{
+      const r2   = await fetch("/verify-totp", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email:pendingEmail,token}) });
+      const d2   = await r2.json();
+      if (r2.ok) {
+        localStorage.setItem("token", d2.token);
+        localStorage.setItem("role",  d2.role);
+        localStorage.setItem("email", d2.email);
+        window.location.href = "/index.html";
+      } else { showMsg("setupMsg","Enter code again on next login","success"); }
+    }, 1500);
+  } else {
+    showMsg("setupMsg", data.error || "Invalid code","error");
+  }
+}
+
+/* ── REGISTER ── */
+async function doRegister() {
+  const email    = document.getElementById("regEmail").value.trim();
+  const password = document.getElementById("regPass").value;
+  const role     = document.getElementById("regRole").value;
+  if (!email || !password) return showMsg("regMsg","Fill in all fields","error");
+  if (password.length < 6)  return showMsg("regMsg","Password min 6 characters","error");
+  const res  = await fetch("/register", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email,password,role}) });
+  const data = await res.json();
+  if (res.ok) {
+    showMsg("regMsg","Account created! Please login.","success");
+    setTimeout(()=>switchTab("login"),1500);
+  } else {
+    showMsg("regMsg", data.error || "Registration failed","error");
+  }
+}
 </script>
 </body>
 </html>
