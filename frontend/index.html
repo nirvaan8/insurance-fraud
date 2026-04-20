@@ -71,13 +71,11 @@
         <div class="card warn-card">  <div class="card-label">ANOMALIES</div>    <div class="card-value" id="statAnom">0</div></div>
         <div class="card">            <div class="card-label">AVG CONFIDENCE</div><div class="card-value" id="statConf">0%</div></div>
       </div>
-
       <div class="charts">
         <div class="chart-panel"><div class="panel-title">CLAIM AMOUNT TIMELINE</div><canvas id="lineChart" height="120"></canvas></div>
         <div class="chart-panel"><div class="panel-title">RISK DISTRIBUTION</div><canvas id="doughnutChart" height="150"></canvas></div>
         <div class="chart-panel"><div class="panel-title">CONFIDENCE SCORES</div><canvas id="barChart" height="150"></canvas></div>
       </div>
-
       <div class="table-panel" id="caseTablePanel">
         <div class="table-header">
           <span class="table-title">CASE RECORDS</span>
@@ -104,7 +102,7 @@
         </div>
         <div id="tableEmpty" class="empty-state" style="display:none">
           <div class="empty-icon">◈</div>
-          <div class="empty-text">// NO DATA — UPLOAD A CSV FILE</div>
+          <div class="empty-text">// NO DATA — UPLOAD A CSV OR GENERATE SYNTHETIC DATA</div>
         </div>
         <div id="pagerBar" style="display:none;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--border);flex-wrap:wrap">
           <button id="prevBtn" onclick="changePage(-1)" class="topbar-btn">← PREV</button>
@@ -117,6 +115,35 @@
 
     <!-- ─── UPLOAD ─── -->
     <div id="section-upload" style="display:none">
+
+      <!-- GENERATE SYNTHETIC DATA -->
+      <div class="section-panel" style="margin-bottom:16px">
+        <div class="section-header"><span class="section-title">⚡ GENERATE SYNTHETIC DATA</span></div>
+        <div class="section-body">
+          <p style="font-family:'Share Tech Mono',monospace;font-size:0.52rem;color:var(--muted);margin-bottom:14px;line-height:1.7">
+            Generate realistic insurance fraud data instantly — no file needed.<br>
+            Data is generated server-side and scored by the ML engine automatically.
+          </p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+            <button class="btn btn-success" onclick="quickGen(10000,30)">10K ROWS — 30% FRAUD</button>
+            <button class="btn btn-warn"    onclick="quickGen(50000,40)">50K ROWS — 40% FRAUD</button>
+            <button class="btn btn-danger"  onclick="quickGen(100000,35)">100K ROWS — 35% FRAUD</button>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <span style="font-family:'Share Tech Mono',monospace;font-size:0.54rem;color:var(--muted)">CUSTOM COUNT:</span>
+            <input type="number" id="customCount" value="25000" min="100" max="200000" class="input-field" style="width:110px">
+            <span style="font-family:'Share Tech Mono',monospace;font-size:0.54rem;color:var(--muted)">FRAUD %:</span>
+            <input type="number" id="customFraud" value="30" min="0" max="100" class="input-field" style="width:70px">
+            <button class="btn btn-accent" onclick="quickGen(
+              parseInt(document.getElementById('customCount').value)||25000,
+              parseInt(document.getElementById('customFraud').value)||30
+            )">GENERATE</button>
+          </div>
+          <div id="genStatus" style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--accent);margin-top:12px;min-height:20px"></div>
+        </div>
+      </div>
+
+      <!-- CSV UPLOAD -->
       <div class="section-panel">
         <div class="section-header"><span class="section-title">CSV FILE UPLOAD</span></div>
         <div class="section-body">
@@ -291,7 +318,7 @@
     <div class="ai-msg bot">System online. I have access to your live dashboard data. Ask me anything about fraud patterns, anomalies, or threat levels.</div>
   </div>
   <div class="ai-input-row">
-    <input class="ai-input" id="aiInput" placeholder="Ask about fraud patterns..." onkeydown="if(event.key==='Enter'&&!event.shiftKey)sendAI()">
+    <input class="ai-input" id="aiInput" placeholder="Ask about fraud patterns..." onkeydown="if(event.key==='Enter')sendAI()">
     <button class="ai-send" onclick="sendAI()">▶</button>
   </div>
 </div>
@@ -299,39 +326,32 @@
 <div class="toast-container" id="toastContainer"></div>
 
 <script>
-/* ════════════════════════════════════════
-   GLOBALS & AUTH
-════════════════════════════════════════ */
+/* ════ GLOBALS ════ */
 const token = localStorage.getItem("token");
 const role  = localStorage.getItem("role")  || "analyst";
 const email = localStorage.getItem("email") || "";
 
 if (!token) window.location.href = "/login.html";
 
-let allResults   = [];
-let filteredRows = [];
-let currentPage  = 1;
-const PAGE_SIZE  = 100;
+let allResults = [], filteredRows = [];
+let currentPage = 1;
+const PAGE_SIZE = 100;
 let lineChart, doughnutChart, barChart;
 let geoMap, heatLayer, geoMapInit = false;
-let aiHistory = [];
-let aiThinking = false;
+let aiHistory = [], aiThinking = false;
 
 document.getElementById("roleBadge").textContent = "ROLE: " + role.toUpperCase();
 document.getElementById("accEmail").textContent  = email;
 document.getElementById("accRole").textContent   = role.toUpperCase();
 
 if (role !== "admin") document.querySelectorAll(".admin-nav").forEach(el => el.style.display = "none");
-
 setInterval(() => { document.getElementById("clock").textContent = new Date().toLocaleTimeString("en-GB"); }, 1000);
 
-/* ════════════════════════════════════════
-   NAVIGATION
-════════════════════════════════════════ */
+/* ════ NAV ════ */
 const SECTIONS = ["dashboard","upload","history","users","soc","geo","account"];
 const TITLES = {
   dashboard:["THREAT DASHBOARD","// REAL-TIME FRAUD ANALYSIS ENGINE"],
-  upload:   ["UPLOAD DATA","// CSV UPLOAD & ML ANALYSIS"],
+  upload:   ["UPLOAD DATA","// CSV UPLOAD & SYNTHETIC GENERATION"],
   history:  ["UPLOAD HISTORY","// HISTORICAL DATASET LOG"],
   users:    ["USER MANAGEMENT","// REGISTERED ACCOUNTS"],
   soc:      ["SOC EVENTS","// SECURITY OPERATIONS CENTER"],
@@ -363,9 +383,7 @@ function closeSidebar() {
   document.getElementById("sidebarOverlay").classList.remove("active");
 }
 
-/* ════════════════════════════════════════
-   TOAST
-════════════════════════════════════════ */
+/* ════ TOAST ════ */
 function toast(msg, type="info") {
   const el = document.createElement("div");
   el.className = "toast toast-"+type;
@@ -374,50 +392,37 @@ function toast(msg, type="info") {
   setTimeout(() => el.remove(), 4000);
 }
 
-/* ════════════════════════════════════════
-   API HELPER
-════════════════════════════════════════ */
+/* ════ API HELPER ════ */
 async function api(url, opts={}) {
   const res = await fetch(url, { headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"}, ...opts });
   if (res.status === 401) { localStorage.clear(); window.location.href="/login.html"; }
   return res;
 }
 
-/* ════════════════════════════════════════
-   DASHBOARD
-════════════════════════════════════════ */
+/* ════ DASHBOARD ════ */
 async function loadDashboard(data) {
   if (!data) {
     const res = await api("/results?limit=1000");
     if (!res.ok) return;
     data = await res.json();
   }
-  allResults  = data;
-  currentPage = 1;
-  updateStats(data);
-  renderCharts(data);
-  renderTable();
+  allResults = data; currentPage = 1;
+  updateStats(data); renderCharts(data); renderTable();
 }
 
-async function refreshData() {
-  toast("Refreshing...","info");
-  await loadDashboard();
-  toast("Refreshed","success");
-}
+async function refreshData() { toast("Refreshing...","info"); await loadDashboard(); toast("Refreshed","success"); }
 
 async function loadAll() {
   toast("Loading all records...","info");
   const res = await api("/results?limit=200000");
-  if (!res.ok) return toast("Failed to load","error");
+  if (!res.ok) return toast("Failed","error");
   const d = await res.json();
   allResults = d; currentPage = 1;
   updateStats(d); renderCharts(d); renderTable();
   toast(`Loaded ${d.length.toLocaleString()} records`,"success");
 }
 
-/* ════════════════════════════════════════
-   STATS
-════════════════════════════════════════ */
+/* ════ STATS ════ */
 function updateStats(data) {
   const high = data.filter(r=>r.risk==="High").length;
   const med  = data.filter(r=>r.risk==="Medium").length;
@@ -437,9 +442,7 @@ function animCount(id, target) {
   gsap.to({v:0},{v:target,duration:1.2,ease:"power2.out",onUpdate:function(){el.textContent=Math.round(this.targets()[0].v).toLocaleString();}});
 }
 
-/* ════════════════════════════════════════
-   TABLE + PAGINATION
-════════════════════════════════════════ */
+/* ════ TABLE + PAGINATION ════ */
 function renderTable() {
   const filter = document.getElementById("riskFilter").value;
   filteredRows = filter ? allResults.filter(r=>r.risk===filter) : allResults;
@@ -495,9 +498,7 @@ function changePage(dir) {
 }
 function filterTable() { currentPage=1; renderTable(); }
 
-/* ════════════════════════════════════════
-   CHARTS
-════════════════════════════════════════ */
+/* ════ CHARTS ════ */
 const C = { accent:"#00ffc8",danger:"#ff2d6b",warning:"#ffaa00",muted:"rgba(74,122,112,0.3)",text:"#4a7a70" };
 
 function renderCharts(data) {
@@ -529,9 +530,41 @@ function renderCharts(data) {
   });
 }
 
-/* ════════════════════════════════════════
-   UPLOAD
-════════════════════════════════════════ */
+/* ════ GENERATE SYNTHETIC DATA ════ */
+async function quickGen(count, fraudRate) {
+  const st = document.getElementById("genStatus");
+  st.style.color = "var(--accent)";
+  st.textContent = `⏳ Generating ${count.toLocaleString()} rows at ${fraudRate}% fraud rate... (this may take up to 30s for large datasets)`;
+  const t0 = Date.now();
+  try {
+    const res  = await fetch("/generate-data", {
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},
+      body:JSON.stringify({ count, fraudRate, uploadedBy: email })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      const sec = ((Date.now()-t0)/1000).toFixed(1);
+      st.style.color = "var(--success)";
+      st.textContent = `✅ ${data.stats.totalRows.toLocaleString()} rows in ${sec}s — High: ${data.stats.high.toLocaleString()}, Med: ${data.stats.medium.toLocaleString()}, Low: ${data.stats.low.toLocaleString()}, Anomalies: ${data.stats.anomalies.toLocaleString()} (${data.performance.rowsPerSec.toLocaleString()} rows/sec)`;
+      toast(`Generated ${data.stats.totalRows.toLocaleString()} records in ${sec}s`,"success");
+      setTimeout(async () => {
+        await loadDashboard();
+        showSection("dashboard", document.getElementById("nav-dashboard"));
+      }, 1500);
+    } else {
+      st.style.color = "var(--danger)";
+      st.textContent = "❌ " + (data.error || "Generation failed");
+      toast(data.error || "Generation failed","error");
+    }
+  } catch(e) {
+    st.style.color = "var(--danger)";
+    st.textContent = "❌ Network error — check connection";
+    toast("Network error","error");
+  }
+}
+
+/* ════ CSV UPLOAD ════ */
 async function uploadCSV() {
   const file = document.getElementById("csvFile").files[0];
   if (!file) return toast("Select a CSV file first","error");
@@ -559,9 +592,9 @@ async function uploadCSV() {
     const data = await res.json();
     fillEl.style.width = "100%";
     if (res.ok) {
-      textEl.textContent       = `✅ ${data.length.toLocaleString()} rows processed`;
-      statusEl.style.color     = "var(--success)";
-      statusEl.textContent     = `✅ Upload complete — ${data.length.toLocaleString()} rows analyzed`;
+      textEl.textContent   = `✅ ${data.length.toLocaleString()} rows processed`;
+      statusEl.style.color = "var(--success)";
+      statusEl.textContent = `✅ Upload complete — ${data.length.toLocaleString()} rows analyzed`;
       toast(`Upload complete — ${data.length.toLocaleString()} rows`,"success");
       await loadDashboard(data);
       showSection("dashboard",document.getElementById("nav-dashboard"));
@@ -574,7 +607,7 @@ async function uploadCSV() {
   } catch(e) {
     textEl.textContent   = "❌ Network error";
     statusEl.style.color = "var(--danger)";
-    statusEl.textContent = "Network error — check connection";
+    statusEl.textContent = "Network error";
     toast("Network error","error");
   } finally {
     btn.disabled = false;
@@ -582,9 +615,7 @@ async function uploadCSV() {
   }
 }
 
-/* ════════════════════════════════════════
-   HISTORY
-════════════════════════════════════════ */
+/* ════ HISTORY ════ */
 async function loadHistory() {
   const res  = await api("/upload-history");
   if (!res.ok) return;
@@ -617,9 +648,7 @@ async function loadUploadResults(uploadId, filename) {
   toast(`Loaded ${d.length.toLocaleString()} records from "${filename}"`,"success");
 }
 
-/* ════════════════════════════════════════
-   USERS
-════════════════════════════════════════ */
+/* ════ USERS ════ */
 async function loadUsers() {
   const res  = await api("/users");
   if (!res.ok) return;
@@ -654,9 +683,7 @@ async function unlockUser(em) {
   else toast("Failed","error");
 }
 
-/* ════════════════════════════════════════
-   SOC
-════════════════════════════════════════ */
+/* ════ SOC ════ */
 async function loadSOC() {
   const sev=document.getElementById("sevFilter").value;
   const cat=document.getElementById("catFilter").value;
@@ -737,9 +764,7 @@ async function unblockIPFn(ip){
   else toast("Failed","error");
 }
 
-/* ════════════════════════════════════════
-   GEO HEATMAP
-════════════════════════════════════════ */
+/* ════ GEO HEATMAP ════ */
 const CITY_COORDS={
   "Mumbai":[19.076,72.8777],"Delhi":[28.6139,77.209],"Bangalore":[12.9716,77.5946],
   "Hyderabad":[17.385,78.4867],"Chennai":[13.0827,80.2707],"Kolkata":[22.5726,88.3639],
@@ -791,9 +816,7 @@ async function loadGeoMap(){
     </tr>`).join("");
 }
 
-/* ════════════════════════════════════════
-   ACCOUNT
-════════════════════════════════════════ */
+/* ════ ACCOUNT ════ */
 async function loadTOTPStatus(){
   const res=await fetch(`/totp-status?email=${encodeURIComponent(email)}`);
   if(!res.ok)return;const data=await res.json();
@@ -821,9 +844,7 @@ function toggleTheme(){
   document.getElementById("themeLabel").textContent=isDark?"LIGHT MODE":"DARK MODE";
 }
 
-/* ════════════════════════════════════════
-   AI SOC ASSISTANT — calls /api/chat (backend proxy)
-════════════════════════════════════════ */
+/* ════ AI SOC ASSISTANT ════ */
 function toggleAI(){ document.getElementById("aiPanel").classList.toggle("open"); }
 
 async function sendAI(){
@@ -835,78 +856,66 @@ async function sendAI(){
 
   const msgs = document.getElementById("aiMessages");
   msgs.innerHTML += `<div class="ai-msg user">${msg}</div>`;
-  msgs.scrollTop = msgs.scrollHeight;
+  msgs.scrollTop  = msgs.scrollHeight;
 
-  // Build live context from current dashboard data
-  const high   = allResults.filter(r=>r.risk==="High").length;
-  const med    = allResults.filter(r=>r.risk==="Medium").length;
-  const low    = allResults.filter(r=>r.risk==="Low").length;
-  const anom   = allResults.filter(r=>r.anomaly?.isAnomaly).length;
-  const flags  = [...new Set(allResults.flatMap(r=>r.flags||[]))].slice(0,8).join(", ");
+  const high    = allResults.filter(r=>r.risk==="High").length;
+  const med     = allResults.filter(r=>r.risk==="Medium").length;
+  const low     = allResults.filter(r=>r.risk==="Low").length;
+  const anom    = allResults.filter(r=>r.anomaly?.isAnomaly).length;
+  const flags   = [...new Set(allResults.flatMap(r=>r.flags||[]))].slice(0,8).join(", ");
   const avgConf = allResults.length ? (allResults.reduce((s,r)=>s+(r.confidence||0),0)/allResults.length*100).toFixed(0) : 0;
 
   const systemContext = `You are a SOC (Security Operations Center) AI assistant embedded in FraudSys, a real-time insurance fraud detection platform.
 
 Current live dashboard statistics:
 - Total records analyzed: ${allResults.length.toLocaleString()}
-- High risk cases: ${high.toLocaleString()} (${allResults.length>0?((high/allResults.length)*100).toFixed(1):0}%)
-- Medium risk cases: ${med.toLocaleString()}
-- Low risk cases: ${low.toLocaleString()}
-- Statistical anomalies detected: ${anom.toLocaleString()}
+- High risk: ${high.toLocaleString()} (${allResults.length>0?((high/allResults.length)*100).toFixed(1):0}%)
+- Medium risk: ${med.toLocaleString()}
+- Low risk: ${low.toLocaleString()}
+- Anomalies detected: ${anom.toLocaleString()}
 - Average model confidence: ${avgConf}%
-- Top fraud flags detected: ${flags||"none yet"}
+- Top fraud flags: ${flags||"none yet"}
 
-Your role: Analyze fraud patterns, explain ML predictions, guide investigations, suggest escalation priorities, and answer cybersecurity questions. Be concise, professional, and actionable. Use bullet points for lists.`;
+Be concise, professional, and actionable. Use bullet points for lists.`;
 
-  aiHistory.push({ role: "user", content: msg });
+  aiHistory.push({ role:"user", content:msg });
   if (aiHistory.length > 20) aiHistory = aiHistory.slice(-20);
 
-  // Show typing indicator
   const thinking = document.createElement("div");
   thinking.className = "ai-msg bot";
-  thinking.style.opacity = "0.6";
-  thinking.textContent = "Analyzing...";
+  thinking.style.opacity = "0.5";
+  thinking.textContent   = "Analyzing...";
   msgs.appendChild(thinking);
   msgs.scrollTop = msgs.scrollHeight;
   aiThinking = true;
 
   try {
     const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type":  "application/json",
-        "Authorization": "Bearer " + token
-      },
-      body: JSON.stringify({
-        messages:      aiHistory,
-        systemContext: systemContext
-      })
+      method:  "POST",
+      headers: { "Content-Type":"application/json", "Authorization":"Bearer "+token },
+      body:    JSON.stringify({ messages: aiHistory, systemContext })
     });
-
     const data = await res.json();
-
     if (res.ok && data.reply) {
-      aiHistory.push({ role: "assistant", content: data.reply });
+      aiHistory.push({ role:"assistant", content:data.reply });
       thinking.style.opacity = "1";
       thinking.textContent   = data.reply;
     } else {
       thinking.style.opacity = "1";
       thinking.style.color   = "var(--danger)";
-      thinking.textContent   = "Error: " + (data.error || "No response from AI");
+      thinking.textContent   = "Error: " + (data.error || "No response");
     }
   } catch(e) {
     thinking.style.opacity = "1";
     thinking.style.color   = "var(--danger)";
-    thinking.textContent   = "Network error — check backend connection";
+    thinking.textContent   = "Network error — check backend";
   } finally {
     aiThinking = false;
     msgs.scrollTop = msgs.scrollHeight;
   }
 }
 
-/* ════════════════════════════════════════
-   INIT
-════════════════════════════════════════ */
+/* ════ INIT ════ */
 loadDashboard();
 </script>
 </body>
