@@ -12,21 +12,21 @@ const { OAuth2Client } = require("google-auth-library");
 const rateLimit      = require("express-rate-limit");
 const QRCode         = require("qrcode");
 const helmet         = require("helmet");
-const { authenticator } = require("otplib");
-
-authenticator.options = { window: 1 };
+const speakeasy      = require("speakeasy");
 
 const app = express();
 app.set("trust proxy", 1);
+
 /* ================= HELMET ================= */
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc:  ["'self'"],
       scriptSrc:   ["'self'", "'unsafe-inline'", "https://accounts.google.com", "https://apis.google.com", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://fonts.googleapis.com"],
+      scriptSrcAttr: ["'unsafe-inline'"],
       connectSrc:  ["'self'", "https://accounts.google.com", "https://apis.google.com", "https://www.google.com", "https://oauth2.googleapis.com"],
       frameSrc:    ["'self'", "https://accounts.google.com"],
-      styleSrc:    ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://accounts.google.com"],
+      styleSrc:    ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://accounts.google.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
       fontSrc:     ["'self'", "https://fonts.gstatic.com", "data:"],
       imgSrc:      ["'self'", "data:", "https:", "blob:"],
       objectSrc:   ["'none'"],
@@ -223,21 +223,17 @@ app.get("/", (req, res) => res.redirect("/login.html"));
 app.use(express.static(path.resolve(__dirname, "../frontend")));
 
 /* ─────────────────────────────────────────────────────────────
-   SOC AI ASSISTANT PROXY  — POST /api/chat
-   Proxies requests to Anthropic — avoids CORS issues
+   SOC AI ASSISTANT PROXY — POST /api/chat
 ───────────────────────────────────────────────────────────── */
 app.post("/api/chat", aiLimiter, verifyToken, async (req, res) => {
   try {
     const { messages, systemContext } = req.body;
-
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    if (!messages || !Array.isArray(messages) || messages.length === 0)
       return res.status(400).json({ error: "Messages array required" });
-    }
 
     const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-    if (!ANTHROPIC_API_KEY) {
+    if (!ANTHROPIC_API_KEY)
       return res.status(500).json({ error: "ANTHROPIC_API_KEY not set in environment variables" });
-    }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -255,15 +251,11 @@ app.post("/api/chat", aiLimiter, verifyToken, async (req, res) => {
     });
 
     const data = await response.json();
-
     if (!response.ok) {
       console.error("Anthropic error:", JSON.stringify(data));
       return res.status(502).json({ error: data.error?.message || "Anthropic API error" });
     }
-
-    const reply = data.content?.[0]?.text || "No response.";
-    res.json({ reply });
-
+    res.json({ reply: data.content?.[0]?.text || "No response." });
   } catch (err) {
     console.error("AI proxy error:", err.message);
     res.status(500).json({ error: "AI service error: " + err.message });
@@ -271,20 +263,19 @@ app.post("/api/chat", aiLimiter, verifyToken, async (req, res) => {
 });
 
 /* ─────────────────────────────────────────────────────────────
-   TOTP 2FA
+   TOTP 2FA  (speakeasy)
 ───────────────────────────────────────────────────────────── */
 app.post("/setup-totp", async (req, res) => {
   try {
     const { email } = req.body;
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ error: "User not found" });
-    const secret     = authenticator.generateSecret();
-    const otpauthUrl = authenticator.keyuri(email, "FraudSys", secret);
-    user.totpSecret  = secret;
+    const secret = speakeasy.generateSecret({ name: `FraudSys (${email})`, issuer: "FraudSys" });
+    user.totpSecret  = secret.base32;
     user.totpEnabled = false;
     await user.save();
-    const qrDataURL = await QRCode.toDataURL(otpauthUrl);
-    res.json({ secret, qrCode: qrDataURL, otpauth: otpauthUrl });
+    const qrDataURL = await QRCode.toDataURL(secret.otpauth_url);
+    res.json({ secret: secret.base32, qrCode: qrDataURL, otpauth: secret.otpauth_url });
   } catch (err) { res.status(500).json({ error: "TOTP setup failed" }); }
 });
 
@@ -293,7 +284,7 @@ app.post("/enable-totp", async (req, res) => {
     const { email, token } = req.body;
     const user = await User.findOne({ email });
     if (!user || !user.totpSecret) return res.status(400).json({ error: "TOTP not set up" });
-    const valid = authenticator.verify({ token: token.replace(/\s/g, ""), secret: user.totpSecret });
+    const valid = speakeasy.totp.verify({ secret: user.totpSecret, encoding: "base32", token: token.replace(/\s/g, ""), window: 1 });
     if (!valid) return res.status(400).json({ error: "Invalid code ❌" });
     user.totpEnabled = true;
     await user.save();
@@ -308,12 +299,12 @@ app.post("/verify-totp", authLimiter, async (req, res) => {
     const user = await User.findOne({ email });
     if (!user || !user.totpSecret || !user.totpEnabled)
       return res.status(400).json({ error: "TOTP not enabled" });
-    const valid = authenticator.verify({ token: token.replace(/\s/g, ""), secret: user.totpSecret });
+    const valid = speakeasy.totp.verify({ secret: user.totpSecret, encoding: "base32", token: token.replace(/\s/g, ""), window: 1 });
     if (!valid) {
       await logEvent("MEDIUM", "AUTH", "TOTP failed", `Invalid TOTP for ${email}`, email, req);
       return res.status(400).json({ error: "Invalid code ❌" });
     }
-    user.lastLogin = new Date();
+    user.lastLogin    = new Date();
     user.failedLogins = 0;
     await user.save();
     const jwtToken = generateToken(user);
@@ -411,7 +402,7 @@ app.post("/auth/google", async (req, res) => {
       user.googleId = googleId; user.avatar = picture; user.authProvider = "google"; user.lastLogin = new Date();
     }
     await user.save();
-    await logEvent("INFO", "AUTH", isNew?"New Google user":"Google login", `${email} as ${user.role}`, email, req);
+    await logEvent("INFO", "AUTH", isNew ? "New Google user" : "Google login", `${email} as ${user.role}`, email, req);
     res.json({ message: "Google login successful ✅", token: generateToken(user), role: user.role, email: user.email, name, avatar: picture, expiresIn: JWT_EXPIRY });
   } catch (err) {
     await logEvent("HIGH", "AUTH", "Google auth failure", err.message, "anonymous", req);
@@ -666,14 +657,72 @@ app.post("/upload", uploadLimiter, upload.single("file"), async (req, res) => {
 });
 
 /* ─────────────────────────────────────────────────────────────
+   GENERATE DATA
+───────────────────────────────────────────────────────────── */
+app.post("/generate-data", async (req, res) => {
+  try {
+    const { count = 10000, fraudRate = 30, uploadedBy = "admin" } = req.body;
+    const size  = Math.min(200000, Math.max(100, parseInt(count)));
+    const fraud = Math.min(100,    Math.max(0,   parseInt(fraudRate)));
+    const t0    = Date.now();
+
+    const CITIES = ['Mumbai','Delhi','Bangalore','Hyderabad','Ahmedabad','Chennai','Kolkata',
+      'Pune','Jaipur','Lucknow','Surat','Nagpur','Indore','Bhopal','Patna','Vadodara',
+      'Ludhiana','Rajkot','Meerut','Varanasi','Noida','Gurugram','Chandigarh','Coimbatore',
+      'Guwahati','Raipur','Jodhpur','Madurai','Kota','Ranchi','Amritsar','Visakhapatnam',
+      'Aurangabad','Nashik','Thane','Mysuru','Vijayawada','Gwalior','Jabalpur','Agra'];
+
+    const rnd  = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+    const incidents = ['collision','theft','fire','other'];
+
+    const rows = [];
+    for (let i = 0; i < size; i++) {
+      if (Math.random() * 100 < fraud) {
+        rows.push({ amount: rnd(500000,2000000), claims: rnd(10,35), age: rnd(19,30), policyDuration: rnd(1,6), incidentType: pick(['fire','theft']), witnesses: 0, policeReport: false, premiumAmount: rnd(15000,50000), vehicleAge: rnd(10,25), location: pick(CITIES) });
+      } else {
+        rows.push({ amount: rnd(10000,400000), claims: rnd(1,8), age: rnd(30,65), policyDuration: rnd(24,120), incidentType: pick(incidents), witnesses: rnd(1,3), policeReport: true, premiumAmount: rnd(8000,30000), vehicleAge: rnd(1,10), location: pick(CITIES) });
+      }
+    }
+
+    const { predict } = require("./predict_batch.js");
+    const CHUNK = 5000;
+    let high = 0, medium = 0, low = 0, anomalies = 0;
+
+    await Result.deleteMany({});
+    const uploadRecord = await UploadHistory.create({
+      filename: `generated_${size}_rows.csv`, totalRows: 0,
+      highRisk: 0, mediumRisk: 0, lowRisk: 0, anomalies: 0, uploadedBy
+    });
+
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const results = rows.slice(i, i + CHUNK).map(r => {
+        const p = predict(r);
+        if (p.risk === "High") high++; else if (p.risk === "Medium") medium++; else low++;
+        if (p.anomaly?.is_anomaly) anomalies++;
+        return { ...r, risk: p.risk, confidence: p.confidence, riskScore: p.risk_score, probabilities: p.probabilities, anomaly: { isAnomaly: p.anomaly.is_anomaly, anomalyScore: p.anomaly.anomaly_score }, flags: p.flags || [], uploadId: uploadRecord._id };
+      });
+      await Result.insertMany(results, { ordered: false });
+    }
+
+    await UploadHistory.findByIdAndUpdate(uploadRecord._id, { totalRows: size, highRisk: high, mediumRisk: medium, lowRisk: low, anomalies });
+    const elapsed = Date.now() - t0;
+    await logEvent("INFO", "UPLOAD", "Synthetic data generated", `${uploadedBy} generated ${size.toLocaleString()} rows at ${fraud}% fraud rate`, uploadedBy, req, { size, fraudRate: fraud, high, medium, low, anomalies });
+    res.json({ message: "Generated successfully ✅", stats: { totalRows: size, high, medium, low, anomalies }, performance: { elapsed, rowsPerSec: Math.round(size / (elapsed / 1000)) } });
+  } catch (err) {
+    console.error("Generate error:", err);
+    res.status(500).json({ error: "Generation failed: " + err.message });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────
    HEALTH CHECK
 ───────────────────────────────────────────────────────────── */
 app.get("/health", (req, res) => {
   const s = mongoose.connection.readyState;
   const states = { 0:"disconnected",1:"connected",2:"connecting",3:"disconnecting" };
   res.status(s === 1 ? 200 : 503).json({
-    status: s === 1 ? "ok" : "degraded",
-    db: states[s] || "unknown",
+    status: s === 1 ? "ok" : "degraded", db: states[s] || "unknown",
     uptime: Math.floor(process.uptime()) + "s",
     memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + "MB",
     timestamp: new Date().toISOString()
