@@ -35,7 +35,10 @@ app.use(helmet({
   },
   crossOriginEmbedderPolicy: false
 }));
-
+connectSrc: ["'self'", "https://accounts.google.com", "https://apis.google.com", 
+  "https://www.google.com", "https://oauth2.googleapis.com", 
+  "https://cdn.jsdelivr.net", "https://unpkg.com", "https://cdnjs.cloudflare.com",
+  "https://generativelanguage.googleapis.com"],  // ← add this
 app.use(cors());
 app.use(express.json());
 
@@ -231,24 +234,57 @@ app.post("/api/chat", aiLimiter, verifyToken, async (req, res) => {
     if (!messages || !Array.isArray(messages) || messages.length === 0)
       return res.status(400).json({ error: "Messages array required" });
 
-    const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-    if (!ANTHROPIC_API_KEY)
-      return res.status(500).json({ error: "ANTHROPIC_API_KEY not set in environment variables" });
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    if (!GEMINI_API_KEY)
+      return res.status(500).json({ error: "GEMINI_API_KEY not set in environment variables" });
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type":      "application/json",
-        "x-api-key":         ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model:      "claude-haiku-4-5-20251001",
-        max_tokens: 600,
-        system:     systemContext || "You are a SOC AI assistant for FraudSys. Be concise.",
-        messages:   messages.slice(-20)
-      })
-    });
+    // Build Gemini contents array from message history
+    const contents = messages.slice(-20).map(m => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }]
+    }));
+
+    // Prepend system context as first user message if provided
+    if (systemContext) {
+      contents.unshift({
+        role: "user",
+        parts: [{ text: systemContext }]
+      }, {
+        role: "model",
+        parts: [{ text: "Understood. I am ready to assist." }]
+      });
+    }
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents,
+          generationConfig: {
+            maxOutputTokens: 600,
+            temperature: 0.7
+          }
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("Gemini error:", JSON.stringify(data));
+      return res.status(502).json({ error: data.error?.message || "Gemini API error" });
+    }
+
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response.";
+    res.json({ reply });
+
+  } catch (err) {
+    console.error("AI proxy error:", err.message);
+    res.status(500).json({ error: "AI service error: " + err.message });
+  }
+});
 
     const data = await response.json();
     if (!response.ok) {
