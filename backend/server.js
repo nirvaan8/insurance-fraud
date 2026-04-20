@@ -12,13 +12,12 @@ const { OAuth2Client } = require("google-auth-library");
 const rateLimit      = require("express-rate-limit");
 const QRCode         = require("qrcode");
 const helmet         = require("helmet");
-const otplib         = require("otplib");
+const { authenticator } = require("otplib");
 
-const authenticator  = otplib.authenticator;
 authenticator.options = { window: 1 };
+
 const app = express();
 app.set("trust proxy", 1);
-
 /* ================= HELMET ================= */
 app.use(helmet({
   contentSecurityPolicy: {
