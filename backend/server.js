@@ -15,7 +15,8 @@ const QRCode         = require("qrcode");
 const helmet         = require("helmet");
 
 authenticator.options = { window: 1 };
-
+const otplib = require("otplib");
+const authenticator = otplib.authenticator;
 const app = express();
 app.set("trust proxy", 1);
 
