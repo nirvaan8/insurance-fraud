@@ -9,14 +9,13 @@ const jwt            = require("jsonwebtoken");
 const nodemailer     = require("nodemailer");
 const mongoSanitize  = require("express-mongo-sanitize");
 const { OAuth2Client } = require("google-auth-library");
-const { authenticator } = require("otplib");
 const rateLimit      = require("express-rate-limit");
 const QRCode         = require("qrcode");
 const helmet         = require("helmet");
+const otplib         = require("otplib");
 
+const authenticator  = otplib.authenticator;
 authenticator.options = { window: 1 };
-const otplib = require("otplib");
-const authenticator = otplib.authenticator;
 const app = express();
 app.set("trust proxy", 1);
 
