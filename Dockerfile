@@ -25,4 +25,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=10s --start-period=40s --retries=5 \
   CMD wget -qO- http://localhost:${PORT:-3000}/health || exit 1
 
-CMD ["node", "backend/server.js"]
+CMD ["node", "--max-old-space-size=400", "backend/server.js"]
