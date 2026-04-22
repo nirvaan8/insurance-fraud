@@ -16,7 +16,7 @@ pipeline {
     stages {
 
         /* ─────────────────────────────────────────
-           STAGE 1 — Checkout
+           STAGE 1 - Checkout
         ───────────────────────────────────────── */
         stage('Checkout') {
             steps {
@@ -30,7 +30,7 @@ pipeline {
         }
 
         /* ─────────────────────────────────────────
-           STAGE 2 — Install Dependencies
+           STAGE 2 - Install Dependencies
         ───────────────────────────────────────── */
         stage('Install Dependencies') {
             steps {
@@ -49,7 +49,7 @@ pipeline {
         }
 
         /* ─────────────────────────────────────────
-           STAGE 3 — Code Quality (Lint)
+           STAGE 3 - Code Quality (Lint)
         ───────────────────────────────────────── */
         stage('Code Quality') {
             steps {
@@ -68,7 +68,7 @@ pipeline {
         }
 
         /* ─────────────────────────────────────────
-           STAGE 4 — Unit Tests
+           STAGE 4 - Unit Tests
         ───────────────────────────────────────── */
         stage('Unit Tests') {
             steps {
@@ -77,7 +77,7 @@ pipeline {
                 echo "=============================="
                 script {
                     if (isUnix()) {
-                        sh 'npm test --if-present || echo "No test suite defined — skipping"'
+                        sh 'npm test --if-present || echo "No test suite defined - skipping"'
                     } else {
                         bat 'npm test --if-present || echo No test suite defined'
                     }
@@ -87,7 +87,7 @@ pipeline {
         }
 
         /* ─────────────────────────────────────────
-           STAGE 5 — Docker Build
+           STAGE 5 - Docker Build
         ───────────────────────────────────────── */
         stage('Docker Build') {
             steps {
@@ -103,7 +103,7 @@ pipeline {
                         }
                         echo "Docker image built: ${DOCKER_IMAGE}:${DOCKER_TAG}"
                     } catch (Exception e) {
-                        echo "WARNING: Docker build failed — ${e.message}"
+                        echo "WARNING: Docker build failed - ${e.message}"
                         echo "Ensure Docker Desktop is running and daemon is accessible"
                         currentBuild.result = 'UNSTABLE'
                     }
@@ -112,7 +112,7 @@ pipeline {
         }
 
         /* ─────────────────────────────────────────
-           STAGE 6 — Docker Push
+           STAGE 6 - Docker Push
         ───────────────────────────────────────── */
         stage('Docker Push') {
             when {
@@ -147,7 +147,7 @@ pipeline {
                         }
                         echo "Image pushed to Docker Hub: ${DOCKER_IMAGE}:${DOCKER_TAG}"
                     } catch (Exception e) {
-                        echo "WARNING: Docker push failed — ${e.message}"
+                        echo "WARNING: Docker push failed - ${e.message}"
                         echo "Ensure dockerhub-creds credentials are configured in Jenkins"
                         currentBuild.result = 'UNSTABLE'
                     }
@@ -156,7 +156,7 @@ pipeline {
         }
 
         /* ─────────────────────────────────────────
-           STAGE 7 — Health Check
+           STAGE 7 - Health Check
         ───────────────────────────────────────── */
         stage('Health Check') {
             steps {
@@ -189,7 +189,7 @@ pipeline {
                         }
                         echo "Health check passed"
                     } catch (Exception e) {
-                        echo "WARNING: Health check failed — ${e.message}"
+                        echo "WARNING: Health check failed - ${e.message}"
                         script {
                             if (isUnix()) {
                                 sh "docker rm -f fraudsys-test-${BUILD_NUMBER} || true"
@@ -204,7 +204,7 @@ pipeline {
         }
 
         /* ─────────────────────────────────────────
-           STAGE 8 — Deploy to Render
+           STAGE 8 - Deploy to Render
         ───────────────────────────────────────── */
         stage('Deploy to Render') {
             steps {
@@ -223,7 +223,7 @@ pipeline {
                         echo "Render deployment triggered successfully"
                         echo "Live URL: https://insurance-fraud-kgp9.onrender.com"
                     } catch (Exception e) {
-                        echo "WARNING: Render deploy trigger failed — ${e.message}"
+                        echo "WARNING: Render deploy trigger failed - ${e.message}"
                         echo "Ensure render-deploy-hook secret is configured in Jenkins credentials"
                         currentBuild.result = 'UNSTABLE'
                     }
@@ -234,26 +234,26 @@ pipeline {
     }
 
     /* ─────────────────────────────────────────
-       POST — Notifications
+       POST - Notifications
     ───────────────────────────────────────── */
     post {
         success {
             echo "=============================================="
-            echo " BUILD #${BUILD_NUMBER} — SUCCESS"
+            echo " BUILD #${BUILD_NUMBER} - SUCCESS"
             echo " FraudSys deployed to production"
             echo " URL: https://insurance-fraud-kgp9.onrender.com"
             echo "=============================================="
         }
         unstable {
             echo "=============================================="
-            echo " BUILD #${BUILD_NUMBER} — UNSTABLE"
+            echo " BUILD #${BUILD_NUMBER} - UNSTABLE"
             echo " Some stages failed (likely Docker not running)"
             echo " Core stages (Checkout, Install, Lint, Test) passed"
             echo "=============================================="
         }
         failure {
             echo "=============================================="
-            echo " BUILD #${BUILD_NUMBER} — FAILED"
+            echo " BUILD #${BUILD_NUMBER} - FAILED"
             echo " Check console output above for errors"
             echo "=============================================="
         }
