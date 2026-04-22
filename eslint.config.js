@@ -1,10 +1,9 @@
-// eslint.config.js
 export default [
     {
-        files: ["backend/**/*.js"],
+        files: ["**/*.js"],
         rules: {
             "no-unused-vars": "warn",
-            "no-console": "off"
+            "no-undef": "warn"
         },
         languageOptions: {
             ecmaVersion: "latest",
