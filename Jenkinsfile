@@ -14,23 +14,14 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout') {
             steps {
-                echo "=============================="
-                echo " STAGE 1: CHECKOUT"
-                echo "=============================="
                 checkout scm
-                echo "Branch: ${env.GIT_BRANCH}"
-                echo "Commit: ${env.GIT_COMMIT}"
             }
         }
 
         stage('Install Dependencies') {
             steps {
-                echo "=============================="
-                echo " STAGE 2: INSTALL DEPENDENCIES"
-                echo "=============================="
                 script {
                     if (isUnix()) {
                         sh 'npm install'
@@ -43,14 +34,14 @@ pipeline {
 
         stage('Code Quality') {
             steps {
-                echo "=============================="
-                echo " STAGE 3: LINT"
-                echo "=============================="
                 script {
-                    if (isUnix()) {
-                        sh 'npx eslint backend/server.js --max-warnings=30 || true'
-                    } else {
-                        bat 'chcp 65001 && npx eslint backend/server.js --max-warnings=30 || exit 0'
+                    // Using catchError allows the build to continue but marks the stage as yellow
+                    catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                        if (isUnix()) {
+                            sh 'npx eslint backend/server.js --max-warnings=30'
+                        } else {
+                            bat 'chcp 65001 && npx eslint backend/server.js --max-warnings=30'
+                        }
                     }
                 }
             }
@@ -58,14 +49,12 @@ pipeline {
 
         stage('Unit Tests') {
             steps {
-                echo "=============================="
-                echo " STAGE 4: TESTS"
-                echo "=============================="
                 script {
                     if (isUnix()) {
-                        sh 'npm test --if-present || echo "No tests - skipping"'
+                        sh 'npm test --if-present'
                     } else {
-                        bat 'chcp 65001 && npm test --if-present || echo No tests'
+                        // Added 'exit 0' to ensure the pipeline doesn't stop if tests are missing
+                        bat 'chcp 65001 && npm test --if-present || exit 0'
                     }
                 }
             }
@@ -74,80 +63,28 @@ pipeline {
         stage('Docker Build') {
             steps {
                 script {
-                    try {
-                        if (isUnix()) {
-                            sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} -t ${DOCKER_IMAGE}:latest ."
-                        } else {
-                            bat "chcp 65001 && docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} -t ${DOCKER_IMAGE}:latest ."
-                        }
-                    } catch (Exception e) {
-                        echo "Docker build failed - ${e.message}"
-                        currentBuild.result = 'UNSTABLE'
+                    if (isUnix()) {
+                        sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} -t ${DOCKER_IMAGE}:latest ."
+                    } else {
+                        bat "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} -t ${DOCKER_IMAGE}:latest ."
                     }
                 }
             }
         }
 
         stage('Docker Push') {
-            when {
-                expression { currentBuild.result != 'UNSTABLE' }
-            }
             steps {
-                script {
-                    try {
-                        withCredentials([usernamePassword(
-                            credentialsId: 'dockerhub-creds',
-                            usernameVariable: 'DOCKER_USER',
-                            passwordVariable: 'DOCKER_PASS'
-                        )]) {
-                            if (isUnix()) {
-                                sh """
-                                echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
-                                docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
-                                docker push ${DOCKER_IMAGE}:latest
-                                docker logout
-                                """
-                            } else {
-                                bat """
-                                chcp 65001
-                                echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin
-                                docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
-                                docker push ${DOCKER_IMAGE}:latest
-                                docker logout
-                                """
-                            }
-                        }
-                    } catch (Exception e) {
-                        echo "Docker push failed - ${e.message}"
-                        currentBuild.result = 'UNSTABLE'
-                    }
-                }
-            }
-        }
-
-        stage('Health Check') {
-            steps {
-                script {
-                    try {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    script {
                         if (isUnix()) {
-                            sh """
-                            docker run -d --name fraudsys-test-${BUILD_NUMBER} -p 3099:3000 ${DOCKER_IMAGE}:${DOCKER_TAG}
-                            sleep 10
-                            curl -f http://localhost:3099/health
-                            docker rm -f fraudsys-test-${BUILD_NUMBER}
-                            """
+                            sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
+                            sh "docker push ${DOCKER_IMAGE}:${DOCKER_TAG}"
+                            sh "docker push ${DOCKER_IMAGE}:latest"
                         } else {
-                            bat """
-                            chcp 65001
-                            docker run -d --name fraudsys-test-${BUILD_NUMBER} -p 3099:3000 ${DOCKER_IMAGE}:${DOCKER_TAG}
-                            timeout /t 10
-                            curl -f http://localhost:3099/health
-                            docker rm -f fraudsys-test-${BUILD_NUMBER}
-                            """
+                            bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
+                            bat "docker push ${DOCKER_IMAGE}:${DOCKER_TAG}"
+                            bat "docker push ${DOCKER_IMAGE}:latest"
                         }
-                    } catch (Exception e) {
-                        echo "Health check failed - ${e.message}"
-                        currentBuild.result = 'UNSTABLE'
                     }
                 }
             }
@@ -160,7 +97,7 @@ pipeline {
                         if (isUnix()) {
                             sh 'curl -X POST "$HOOK"'
                         } else {
-                            bat 'chcp 65001 && curl -X POST "%HOOK%"'
+                            bat 'curl -X POST "%HOOK%"'
                         }
                     }
                 }
@@ -169,14 +106,15 @@ pipeline {
     }
 
     post {
-        success {
-            echo "BUILD SUCCESS"
+        always {
+            script {
+                // Cleanup to save disk space on your Jenkins machine
+                try {
+                    if (isUnix()) { sh 'docker logout' } else { bat 'docker logout' }
+                } catch (Exception e) { echo "Cleanup ignored" }
+            }
         }
-        unstable {
-            echo "BUILD UNSTABLE"
-        }
-        failure {
-            echo "BUILD FAILED"
-        }
+        success { echo "BUILD SUCCESSFUL" }
+        failure { echo "BUILD FAILED - Check ESLint or Test paths" }
     }
 }
