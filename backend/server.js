@@ -20,34 +20,32 @@ const rateLimit      = require("express-rate-limit");
 const QRCode         = require("qrcode");
 
 const app = express();
-app.set("trust proxy", 1); // Trust Railway/Docker/Nginx reverse proxy
+app.set("trust proxy", 1);
 app.use(cors());
 app.use(express.json());
 
 /* ================= RATE LIMITING ================= */
 const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 200,
   message: { error: "Too many requests — slow down ❌" },
   standardHeaders: true, legacyHeaders: false
 });
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20, // stricter for auth endpoints
+  max: 20,
   message: { error: "Too many login attempts — try again later ❌" }
 });
 const uploadLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 5, // max 5 uploads per minute
+  max: 5,
   message: { error: "Upload rate limit exceeded ❌" }
 });
 
 app.use(globalLimiter);
 
 /* ================= SECURITY MIDDLEWARE ================= */
-// Sanitize MongoDB queries — prevents NoSQL injection ($where, $gt attacks)
 app.use(mongoSanitize());
-// Strip dangerous characters from req.body strings (XSS prevention)
 app.use((req, res, next) => {
   const sanitizeStr = (str) => typeof str === "string"
     ? str.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
@@ -68,7 +66,7 @@ app.use((req, res, next) => {
 
 /* ================= JWT CONFIG ================= */
 const JWT_SECRET  = process.env.JWT_SECRET  || "fraudsys-super-secret-jwt-key-2024";
-const JWT_EXPIRY  = process.env.JWT_EXPIRY  || "8h"; // token expires in 8 hours
+const JWT_EXPIRY  = process.env.JWT_EXPIRY  || "8h";
 
 function generateToken(user) {
   return jwt.sign(
@@ -83,18 +81,16 @@ async function verifyToken(req, res, next) {
   const token = authHeader && authHeader.split(" ")[1];
   if (!token) return res.status(401).json({ error: "No token — access denied ❌" });
 
-  // Check IP blacklist
   const ip = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown";
   const blocked = await IPBlacklist.findOne({ ip });
   if (blocked) return res.status(403).json({ error: "Access denied — IP blocked ❌" });
 
-  // Check token revocation
   const revoked = await RevokedToken.findOne({ token });
   if (revoked) return res.status(401).json({ error: "Session revoked — please login again ❌", expired: true });
 
   try {
     req.user = jwt.verify(token, JWT_SECRET);
-    req._token = token; // store for logout
+    req._token = token;
     next();
   } catch (err) {
     if (err.name === "TokenExpiredError") {
@@ -105,9 +101,6 @@ async function verifyToken(req, res, next) {
 }
 
 /* ================= EMAIL / OTP CONFIG ================= */
-// Uses Gmail. Set EMAIL_USER and EMAIL_PASS in .env
-// For testing: use a Gmail app password (not your real password)
-// If no email configured, OTP will be printed to console for testing
 const emailTransporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -116,17 +109,15 @@ const emailTransporter = nodemailer.createTransport({
   }
 });
 
-// In-memory OTP store: { email: { otp, expiresAt } }
 const otpStore = {};
 
 function generateOTP() {
-  return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
+  return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 async function sendOTP(email, otp) {
   const hasEmail = process.env.EMAIL_USER && process.env.EMAIL_PASS;
   if (!hasEmail) {
-    // Development mode — print to console
     console.log(`\n[OTP DEBUG] Code for ${email}: ${otp}\n`);
     return;
   }
@@ -188,6 +179,10 @@ const ResultSchema = new mongoose.Schema({
   uploadId: { type: mongoose.Schema.Types.ObjectId, ref: "UploadHistory", default: null },
   uploadedAt: { type: Date, default: Date.now }
 });
+// Add indexes to speed up paginated queries
+ResultSchema.index({ uploadedAt: -1 });
+ResultSchema.index({ uploadId: 1, uploadedAt: -1 });
+ResultSchema.index({ risk: 1 });
 const Result = mongoose.model("Result", ResultSchema);
 
 const UploadHistorySchema = new mongoose.Schema({
@@ -199,27 +194,19 @@ const UploadHistorySchema = new mongoose.Schema({
 });
 const UploadHistory = mongoose.model("UploadHistory", UploadHistorySchema);
 
-/* ================= SECURITY EVENT MODEL ================= */
-/*
-  severity:  CRITICAL | HIGH | MEDIUM | LOW | INFO
-  category:  AUTH | UPLOAD | ACCESS | SYSTEM | ANOMALY
-  status:    OPEN | INVESTIGATING | RESOLVED
-*/
 const SecurityEventSchema = new mongoose.Schema({
   severity:    { type: String, enum: ["CRITICAL","HIGH","MEDIUM","LOW","INFO"], default: "INFO" },
   category:    { type: String, enum: ["AUTH","UPLOAD","ACCESS","SYSTEM","ANOMALY"], default: "SYSTEM" },
   title:       String,
   description: String,
-  actor:       String,   // email or "anonymous"
+  actor:       String,
   ip:          String,
-  metadata:    mongoose.Schema.Types.Mixed,  // extra context
+  metadata:    mongoose.Schema.Types.Mixed,
   status:      { type: String, enum: ["OPEN","INVESTIGATING","RESOLVED"], default: "OPEN" },
   timestamp:   { type: Date, default: Date.now }
 });
 const SecurityEvent = mongoose.model("SecurityEvent", SecurityEventSchema);
 
-
-/* ================= IP BLACKLIST MODEL ================= */
 const IPBlacklistSchema = new mongoose.Schema({
   ip:        { type: String, unique: true },
   reason:    { type: String, default: "" },
@@ -228,20 +215,18 @@ const IPBlacklistSchema = new mongoose.Schema({
 });
 const IPBlacklist = mongoose.model("IPBlacklist", IPBlacklistSchema);
 
-/* ================= TOKEN BLACKLIST (revoked JWTs) ================= */
 const RevokedTokenSchema = new mongoose.Schema({
   token:     { type: String, unique: true },
   email:     String,
-  revokedAt: { type: Date, default: Date.now, expires: 86400 } // auto-delete after 24h
+  revokedAt: { type: Date, default: Date.now, expires: 86400 }
 });
 const RevokedToken = mongoose.model("RevokedToken", RevokedTokenSchema);
 
-/* ================= AUDIT TRAIL MODEL ================= */
 const AuditSchema = new mongoose.Schema({
-  actor:    String,           // who did it
+  actor:    String,
   ip:       String,
-  action:   String,           // LOGIN, LOGOUT, UPLOAD, DELETE, ROLE_CHANGE, IP_BLOCK, SOC_TRIAGE etc
-  target:   String,           // what was affected
+  action:   String,
+  target:   String,
   before:   mongoose.Schema.Types.Mixed,
   after:    mongoose.Schema.Types.Mixed,
   timestamp:{ type: Date, default: Date.now }
@@ -256,7 +241,7 @@ async function auditLog(actor, req, action, target, before = null, after = null)
   } catch(e) { console.error("Audit log error:", e.message); }
 }
 
-/* ================= SOC LOGGER (helper) ================= */
+/* ================= SOC LOGGER ================= */
 async function logEvent(severity, category, title, description, actor, req, metadata = {}) {
   try {
     const ip = req?.headers?.["x-forwarded-for"] || req?.socket?.remoteAddress || "unknown";
@@ -267,21 +252,17 @@ async function logEvent(severity, category, title, description, actor, req, meta
   }
 }
 
-/* ================= BRUTE FORCE TRACKER (in-memory) ================= */
-// Tracks failed attempts per IP per minute
+/* ================= BRUTE FORCE TRACKER ================= */
 const ipFailMap = {};
 function trackFailedIP(ip) {
   const now = Date.now();
   if (!ipFailMap[ip]) ipFailMap[ip] = [];
-  ipFailMap[ip] = ipFailMap[ip].filter(t => now - t < 60_000); // keep last 60s
+  ipFailMap[ip] = ipFailMap[ip].filter(t => now - t < 60_000);
   ipFailMap[ip].push(now);
   return ipFailMap[ip].length;
 }
 
-
 /* ================= TOTP 2FA ================= */
-
-// Setup TOTP — generate secret + QR code
 app.post("/setup-totp", async (req, res) => {
   try {
     const { email } = req.body;
@@ -293,26 +274,18 @@ app.post("/setup-totp", async (req, res) => {
       issuer: "FraudSys"
     });
 
-    // Save secret temporarily (not enabled until verified)
     user.totpSecret  = secret.base32;
     user.totpEnabled = false;
     await user.save();
 
-    // Generate QR code as data URL
     const qrDataURL = await QRCode.toDataURL(secret.otpauth_url);
-
-    res.json({
-      secret:    secret.base32,
-      qrCode:    qrDataURL,
-      otpauth:   secret.otpauth_url
-    });
+    res.json({ secret: secret.base32, qrCode: qrDataURL, otpauth: secret.otpauth_url });
   } catch (err) {
     console.error("TOTP setup error:", err);
     res.status(500).json({ error: "TOTP setup failed" });
   }
 });
 
-// Verify TOTP token and enable it
 app.post("/enable-totp", async (req, res) => {
   try {
     const { email, token } = req.body;
@@ -337,7 +310,6 @@ app.post("/enable-totp", async (req, res) => {
   }
 });
 
-// Verify TOTP during login
 app.post("/verify-totp", authLimiter, async (req, res) => {
   try {
     const { email, token } = req.body;
@@ -370,7 +342,6 @@ app.post("/verify-totp", authLimiter, async (req, res) => {
   }
 });
 
-// Disable TOTP
 app.post("/disable-totp", async (req, res) => {
   try {
     const { email } = req.body;
@@ -386,7 +357,6 @@ app.post("/disable-totp", async (req, res) => {
   }
 });
 
-// Check TOTP status
 app.get("/totp-status", async (req, res) => {
   try {
     const { email } = req.query;
@@ -411,7 +381,6 @@ app.use(express.static(path.resolve(__dirname, "../frontend")));
    AUTH ROUTES
 ───────────────────────────────────────────────────────────── */
 
-/* REGISTER */
 app.post("/register", async (req, res) => {
   const { email, password, role } = req.body;
   try {
@@ -433,7 +402,6 @@ app.post("/register", async (req, res) => {
   }
 });
 
-/* LOGIN — Step 1: verify password, send OTP */
 app.post("/login", authLimiter, async (req, res) => {
   const { email, password } = req.body;
   const ip = req?.socket?.remoteAddress || "unknown";
@@ -477,15 +445,12 @@ app.post("/login", authLimiter, async (req, res) => {
       return res.status(401).json({ error: "Invalid credentials ❌" });
     }
 
-    // Always use TOTP — if not set up yet, signal frontend to force setup
     if (user.totpEnabled && user.totpSecret) {
       await logEvent("INFO", "AUTH", "TOTP required for login",
         `Password verified for ${email}, TOTP required`, email, req);
       return res.json({ requiresTOTP: true, email, message: "Enter your Google Authenticator code" });
     }
 
-    // TOTP not set up yet — issue a temp token so frontend can call /setup-totp
-    // Do NOT send email OTP
     const tempToken = generateToken(user);
     await logEvent("INFO", "AUTH", "First login — TOTP setup required",
       `Password verified for ${email}, redirecting to mandatory TOTP setup`, email, req);
@@ -497,7 +462,6 @@ app.post("/login", authLimiter, async (req, res) => {
   }
 });
 
-/* LOGIN — Step 2: verify OTP, issue JWT */
 app.post("/verify-otp", authLimiter, async (req, res) => {
   const { email, otp } = req.body;
   try {
@@ -508,18 +472,15 @@ app.post("/verify-otp", authLimiter, async (req, res) => {
     if (!user.otpExpiresAt || user.otpExpiresAt < new Date()) {
       user.pendingOTP = null;
       await user.save();
-      await logEvent("MEDIUM", "AUTH", "OTP expired",
-        `Expired OTP used for ${email}`, email, req);
+      await logEvent("MEDIUM", "AUTH", "OTP expired", `Expired OTP used for ${email}`, email, req);
       return res.status(400).json({ error: "OTP expired — please login again ❌" });
     }
     const otpMatch = await bcrypt.compare(otp, user.pendingOTP);
     if (!otpMatch) {
-      await logEvent("HIGH", "AUTH", "Invalid OTP attempt",
-        `Wrong OTP entered for ${email}`, email, req);
+      await logEvent("HIGH", "AUTH", "Invalid OTP attempt", `Wrong OTP entered for ${email}`, email, req);
       return res.status(401).json({ error: "Invalid OTP ❌" });
     }
 
-    // OTP correct — clear it, issue JWT
     user.pendingOTP   = null;
     user.otpExpiresAt = null;
     user.lastLogin    = new Date();
@@ -529,21 +490,13 @@ app.post("/verify-otp", authLimiter, async (req, res) => {
     await logEvent("INFO", "AUTH", "2FA login successful",
       `${email} completed 2FA and logged in as ${user.role}`, email, req, { role: user.role });
 
-    res.json({
-      message:  "Login successful ✅",
-      token,
-      role:     user.role,
-      email:    user.email,
-      avatar:   user.avatar || null,
-      expiresIn: JWT_EXPIRY
-    });
+    res.json({ message: "Login successful ✅", token, role: user.role, email: user.email, avatar: user.avatar || null, expiresIn: JWT_EXPIRY });
   } catch (err) {
     console.error("OTP verify error:", err);
     res.status(500).json({ error: "OTP verification failed ❌" });
   }
 });
 
-/* GOOGLE LOGIN */
 app.post("/auth/google", async (req, res) => {
   const { credential } = req.body;
   try {
@@ -555,15 +508,12 @@ app.post("/auth/google", async (req, res) => {
     let user = await User.findOne({ $or: [{ googleId }, { email }] });
     const isNew = !user;
     if (!user) {
-      // Brand new user — use requested role (from register page dropdown)
       user = new User({ email, googleId, avatar: picture, role: requestedRole, authProvider: "google" });
     } else {
-      // Existing user — NEVER overwrite their role, just update Google info
       user.googleId     = googleId;
       user.avatar       = picture;
       user.authProvider = "google";
       user.lastLogin    = new Date();
-      // role stays as whatever was set at registration
     }
     await user.save();
 
@@ -586,7 +536,6 @@ app.post("/auth/google", async (req, res) => {
    SECURITY EVENTS API
 ───────────────────────────────────────────────────────────── */
 
-/* GET events (admin SOC feed) */
 app.get("/security-events", async (req, res) => {
   try {
     const { severity, category, status, limit = 100 } = req.query;
@@ -603,7 +552,6 @@ app.get("/security-events", async (req, res) => {
   }
 });
 
-/* GET security stats */
 app.get("/security-stats", async (req, res) => {
   try {
     const since24h = new Date(Date.now() - 24 * 60 * 60_000);
@@ -614,7 +562,6 @@ app.get("/security-stats", async (req, res) => {
       SecurityEvent.countDocuments({ status: "OPEN" }),
       SecurityEvent.countDocuments({ timestamp: { $gte: since24h } })
     ]);
-    // Category breakdown
     const categories = await SecurityEvent.aggregate([
       { $group: { _id: "$category", count: { $sum: 1 } } }
     ]);
@@ -624,13 +571,10 @@ app.get("/security-stats", async (req, res) => {
   }
 });
 
-/* UPDATE event status */
 app.patch("/security-events/:id", async (req, res) => {
   try {
     const { status } = req.body;
-    const event = await SecurityEvent.findByIdAndUpdate(
-      req.params.id, { status }, { new: true }
-    );
+    const event = await SecurityEvent.findByIdAndUpdate(req.params.id, { status }, { new: true });
     res.json(event);
   } catch (err) {
     res.status(500).json({ error: "Failed to update event ❌" });
@@ -648,7 +592,6 @@ app.get("/users", async (req, res) => {
   } catch (err) { res.status(500).json({ error: "Failed to fetch users ❌" }); }
 });
 
-/* UNLOCK ACCOUNT */
 app.post("/unlock-account", async (req, res) => {
   const { email } = req.body;
   try {
@@ -665,7 +608,6 @@ app.post("/unlock-account", async (req, res) => {
     res.status(500).json({ error: "Failed to unlock account ❌" });
   }
 });
-
 
 /* ================= IP BLACKLIST ================= */
 app.get("/ip-blacklist", verifyToken, async (req, res) => {
@@ -707,7 +649,7 @@ app.get("/audit-trail", verifyToken, async (req, res) => {
   } catch(e) { res.status(500).json({ error: "Failed" }); }
 });
 
-/* ================= REVOKED TOKENS (admin view) ================= */
+/* ================= REVOKED TOKENS ================= */
 app.get("/revoked-tokens", verifyToken, async (req, res) => {
   try {
     const tokens = await RevokedToken.find().sort({ revokedAt: -1 }).limit(50);
@@ -715,7 +657,7 @@ app.get("/revoked-tokens", verifyToken, async (req, res) => {
   } catch(e) { res.status(500).json({ error: "Failed" }); }
 });
 
-/* GEO STATS — fraud counts aggregated by location */
+/* GEO STATS */
 app.get("/geo-stats", async (req, res) => {
   try {
     const stats = await Result.aggregate([
@@ -739,16 +681,97 @@ app.get("/geo-stats", async (req, res) => {
   }
 });
 
+/* ─────────────────────────────────────────────────────────────
+   RESULTS — paginated + summary stats from DB (never loads 100k into memory)
+   GET /results?limit=200&skip=0&uploadId=xxx&risk=High
+   Returns: { results[], total, high, medium, low, anomalies, avgConfidence }
+───────────────────────────────────────────────────────────── */
 app.get("/results", async (req, res) => {
   try {
     const uploadId = req.query.uploadId;
-    const query    = (uploadId && uploadId.match(/^[a-f\d]{24}$/i)) ? { uploadId } : {};
-    const limit    = parseInt(req.query.limit) || 1000;
-    const results  = await Result.find(query).sort({ uploadedAt: -1 }).limit(limit).lean();
-    res.json(results);
+    const riskFilter = req.query.risk || null;
+
+    // Hard cap: never send more than 500 rows in one response
+    const limit = Math.min(parseInt(req.query.limit) || 200, 500);
+    const skip  = parseInt(req.query.skip) || 0;
+
+    // Build query
+    const query = {};
+    if (uploadId && uploadId.match(/^[a-f\d]{24}$/i)) query.uploadId = uploadId;
+    if (riskFilter) query.risk = riskFilter;
+
+    // Run data fetch + aggregate stats in parallel — DB does the counting, not JS
+    const [results, stats] = await Promise.all([
+      Result.find(query)
+        .sort({ uploadedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .select("-probabilities"), // drop large nested object not needed in table
+      Result.aggregate([
+        { $match: query },
+        { $group: {
+            _id: null,
+            total:         { $sum: 1 },
+            high:          { $sum: { $cond: [{ $eq: ["$risk", "High"]   }, 1, 0] } },
+            medium:        { $sum: { $cond: [{ $eq: ["$risk", "Medium"] }, 1, 0] } },
+            low:           { $sum: { $cond: [{ $eq: ["$risk", "Low"]    }, 1, 0] } },
+            anomalies:     { $sum: { $cond: ["$anomaly.isAnomaly", 1, 0] } },
+            avgConfidence: { $avg: "$confidence" },
+            // Sample amounts for timeline chart (first 60 sorted by score desc)
+        }}
+      ])
+    ]);
+
+    const s = stats[0] || { total: 0, high: 0, medium: 0, low: 0, anomalies: 0, avgConfidence: 0 };
+
+    res.json({
+      results,
+      total:         s.total,
+      high:          s.high,
+      medium:        s.medium,
+      low:           s.low,
+      anomalies:     s.anomalies,
+      avgConfidence: s.avgConfidence || 0,
+      page:          Math.floor(skip / limit) + 1,
+      totalPages:    Math.ceil(s.total / limit),
+      limit,
+      skip
+    });
   } catch (err) {
     console.error("Results fetch error:", err.message);
     res.status(500).json({ error: "Failed to fetch results ❌" });
+  }
+});
+
+/* Separate lightweight endpoint just for chart data — 60 sample points */
+app.get("/results/chart-sample", async (req, res) => {
+  try {
+    const uploadId = req.query.uploadId;
+    const query = {};
+    if (uploadId && uploadId.match(/^[a-f\d]{24}$/i)) query.uploadId = uploadId;
+
+    // Get 60 spread-out samples for timeline + 10 confidence buckets via aggregation
+    const [sample, confBuckets] = await Promise.all([
+      Result.find(query)
+        .sort({ uploadedAt: -1 })
+        .limit(60)
+        .lean()
+        .select("amount risk confidence riskScore uploadedAt"),
+      Result.aggregate([
+        { $match: query },
+        { $bucket: {
+            groupBy: { $multiply: ["$confidence", 100] },
+            boundaries: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+            default: "other",
+            output: { count: { $sum: 1 } }
+        }}
+      ])
+    ]);
+
+    res.json({ sample, confBuckets });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch chart data" });
   }
 });
 
@@ -759,7 +782,9 @@ app.get("/upload-history", async (req, res) => {
   } catch (err) { res.status(500).json({ error: "Failed to fetch upload history ❌" }); }
 });
 
-/* UPLOAD + ML (batch prediction — fast) */
+/* ─────────────────────────────────────────────────────────────
+   UPLOAD — batch ML, returns only summary + first 200 rows
+───────────────────────────────────────────────────────────── */
 app.post("/upload", uploadLimiter, upload.single("file"), async (req, res) => {
   if (!req.file) {
     await logEvent("MEDIUM", "UPLOAD", "Upload attempt with no file",
@@ -784,12 +809,10 @@ app.post("/upload", uploadLimiter, upload.single("file"), async (req, res) => {
     }
 
     const dataLines = csvLines.slice(1).filter(l => l.trim());
-    const CHUNK     = 2000; // process 2000 rows at a time to stay under memory limit
+    const CHUNK     = 2000;
 
-    // Delete old results first to free memory
     await Result.deleteMany({});
 
-    // Create upload history record first so we have the ID to tag results
     const uploadRecord = await UploadHistory.create({
       filename: req.file.originalname || req.file.filename,
       totalRows: 0, highRisk: 0, mediumRisk: 0, lowRisk: 0,
@@ -798,7 +821,8 @@ app.post("/upload", uploadLimiter, upload.single("file"), async (req, res) => {
     const currentUploadId = uploadRecord._id;
 
     let high = 0, medium = 0, low = 0, anomalies = 0;
-    let summaryRows = []; // keep only first 500 for the response
+    // Only keep first 200 rows for the immediate response — frontend will paginate the rest
+    let previewRows = [];
 
     for (let i = 0; i < dataLines.length; i += CHUNK) {
       const chunk   = dataLines.slice(i, i + CHUNK);
@@ -835,36 +859,31 @@ app.post("/upload", uploadLimiter, upload.single("file"), async (req, res) => {
         };
       });
 
-      // Tally stats
       results.forEach(r => {
-        if (r.risk === "High")   high++;
+        if (r.risk === "High")        high++;
         else if (r.risk === "Medium") medium++;
-        else low++;
+        else                          low++;
         if (r.anomaly?.isAnomaly) anomalies++;
       });
 
-      // Save chunk to MongoDB
       await Result.insertMany(results, { ordered: false });
 
-      // Keep first 500 rows for the dashboard response
-      if (summaryRows.length < 500) {
-        summaryRows = summaryRows.concat(results.slice(0, 500 - summaryRows.length));
+      // Only collect the first 200 rows for the preview response
+      if (previewRows.length < 200) {
+        previewRows = previewRows.concat(results.slice(0, 200 - previewRows.length));
       }
     }
 
     const totalRows = high + medium + low;
 
-    // Update upload history record with final stats
     await UploadHistory.findByIdAndUpdate(currentUploadId, {
-      totalRows: totalRows, highRisk: high, mediumRisk: medium,
-      lowRisk: low, anomalies
+      totalRows, highRisk: high, mediumRisk: medium, lowRisk: low, anomalies
     });
 
     const highRatioPct = totalRows ? (high / totalRows) * 100 : 0;
     const isGenerated  = req.body.generated === 'true';
     const genParams    = isGenerated ? (() => { try { return JSON.parse(req.body.genParams||'{}'); } catch(e){return{};} })() : null;
 
-    // SOC log — generated dataset gets special entry
     if (isGenerated) {
       const genSev = genParams.fraud >= 30 ? "HIGH" : "MEDIUM";
       await logEvent(genSev, "UPLOAD",
@@ -886,7 +905,13 @@ app.post("/upload", uploadLimiter, upload.single("file"), async (req, res) => {
     }
 
     try { fs.unlinkSync(req.file.path); } catch(e) {}
-    res.json(summaryRows);
+
+    // Return summary stats + preview rows (NOT all 100k rows)
+    res.json({
+      preview:  previewRows,          // first 200 rows for immediate table render
+      stats: { totalRows, high, medium, low, anomalies },
+      uploadId: currentUploadId
+    });
   } catch (err) {
     console.error("ML Batch Error:", err.message);
     console.error("Stack:", err.stack);
