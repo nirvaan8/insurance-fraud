@@ -9,13 +9,10 @@ const jwt            = require("jsonwebtoken");
 const nodemailer     = require("nodemailer");
 const mongoSanitize  = require("express-mongo-sanitize");
 const { OAuth2Client } = require("google-auth-library");
-const otplib         = require("otplib");
-const authenticator  = otplib.authenticator;
 const rateLimit      = require("express-rate-limit");
 const QRCode         = require("qrcode");
 const helmet         = require("helmet");
-
-authenticator.options = { window: 1 };
+const speakeasy      = require("speakeasy");
 
 const app = express();
 app.set("trust proxy", 1);
@@ -24,28 +21,28 @@ app.set("trust proxy", 1);
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
-      defaultSrc:  ["'self'"],
-      scriptSrc:   ["'self'", "'unsafe-inline'", "https://accounts.google.com", "https://accounts.google.com/gsi/client", "https://apis.google.com", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://fonts.googleapis.com"],
-      connectSrc:  ["'self'", "https://accounts.google.com", "https://accounts.google.com/gsi/", "https://apis.google.com", "https://www.google.com", "https://oauth2.googleapis.com"],
-      frameSrc:    ["'self'", "https://accounts.google.com", "https://accounts.google.com/gsi/"],
-      frameAncestors: ["'self'"],
-      styleSrc:    ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://accounts.google.com"],
-      fontSrc:     ["'self'", "https://fonts.gstatic.com", "data:"],
-      imgSrc:      ["'self'", "data:", "https:", "blob:"],
-      objectSrc:   ["'none'"],
-      workerSrc:   ["'self'", "blob:"]
+      defaultSrc:    ["'self'"],
+      scriptSrc:     ["'self'", "'unsafe-inline'", "https://accounts.google.com", "https://apis.google.com", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://fonts.googleapis.com"],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      connectSrc:    ["'self'", "https://accounts.google.com", "https://apis.google.com", "https://www.google.com", "https://oauth2.googleapis.com", "https://cdn.jsdelivr.net", "https://unpkg.com", "https://cdnjs.cloudflare.com", "https://generativelanguage.googleapis.com"],
+      frameSrc:      ["'self'", "https://accounts.google.com"],
+      styleSrc:      ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://accounts.google.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
+      fontSrc:       ["'self'", "https://fonts.gstatic.com", "data:"],
+      imgSrc:        ["'self'", "data:", "https:", "blob:"],
+      objectSrc:     ["'none'"],
+      workerSrc:     ["'self'", "blob:"]
     }
   },
   crossOriginEmbedderPolicy: false
 }));
 
 app.use(cors());
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json());
 
 /* ================= RATE LIMITING ================= */
 const globalLimiter = rateLimit({ windowMs: 15*60*1000, max: 200, message: { error: "Too many requests ❌" }, standardHeaders: true, legacyHeaders: false });
 const authLimiter   = rateLimit({ windowMs: 15*60*1000, max: 20,  message: { error: "Too many login attempts ❌" } });
-const uploadLimiter = rateLimit({ windowMs: 60*1000,    max: 10,  message: { error: "Rate limit exceeded ❌" } });
+const uploadLimiter = rateLimit({ windowMs: 60*1000,    max: 5,   message: { error: "Upload rate limit exceeded ❌" } });
 const aiLimiter     = rateLimit({ windowMs: 60*1000,    max: 20,  message: { error: "AI rate limit exceeded ❌" } });
 
 app.use(globalLimiter);
@@ -70,7 +67,7 @@ app.use((req, res, next) => {
   next();
 });
 
-/* ================= JWT ================= */
+/* ================= JWT CONFIG ================= */
 const JWT_SECRET = process.env.JWT_SECRET || "fraudsys-super-secret-jwt-key-2024";
 const JWT_EXPIRY = process.env.JWT_EXPIRY || "8h";
 
@@ -81,14 +78,17 @@ function generateToken(user) {
 async function verifyToken(req, res, next) {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
-  if (!token) return res.status(401).json({ error: "No token ❌" });
+  if (!token) return res.status(401).json({ error: "No token — access denied ❌" });
+
   const ip = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "unknown";
   const blocked = await IPBlacklist.findOne({ ip });
-  if (blocked) return res.status(403).json({ error: "IP blocked ❌" });
+  if (blocked) return res.status(403).json({ error: "Access denied — IP blocked ❌" });
+
   const revoked = await RevokedToken.findOne({ token });
   if (revoked) return res.status(401).json({ error: "Session revoked ❌", expired: true });
+
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    req.user   = jwt.verify(token, JWT_SECRET);
     req._token = token;
     next();
   } catch (err) {
@@ -97,8 +97,17 @@ async function verifyToken(req, res, next) {
   }
 }
 
-/* ================= EMAIL ================= */
+/* ================= EMAIL CONFIG ================= */
 const emailTransporter = nodemailer.createTransport({ service: "gmail", auth: { user: process.env.EMAIL_USER || "", pass: process.env.EMAIL_PASS || "" } });
+
+async function sendOTP(email, otp) {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) { console.log(`[OTP] ${email}: ${otp}`); return; }
+  await emailTransporter.sendMail({
+    from: `"FraudSys" <${process.env.EMAIL_USER}>`, to: email,
+    subject: "FraudSys — 2FA Code",
+    html: `<div style="font-family:monospace;background:#020d0a;color:#00ffc8;padding:24px"><h2>FRAUDSYS // 2FA</h2><div style="font-size:2rem;letter-spacing:8px;margin:16px 0">${otp}</div><p style="color:#4a7a70;font-size:12px">Expires in 5 minutes.</p></div>`
+  });
+}
 
 /* ================= GOOGLE OAUTH ================= */
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "141579954551-r6q36pitk0e2ob17632bggvumtebhv02.apps.googleusercontent.com";
@@ -138,9 +147,6 @@ const ResultSchema = new mongoose.Schema({
   uploadId:   { type: mongoose.Schema.Types.ObjectId, ref: "UploadHistory", default: null },
   uploadedAt: { type: Date, default: Date.now }
 });
-// Index for faster queries
-ResultSchema.index({ uploadId: 1, uploadedAt: -1 });
-ResultSchema.index({ risk: 1 });
 const Result = mongoose.model("Result", ResultSchema);
 
 const UploadHistorySchema = new mongoose.Schema({
@@ -162,13 +168,16 @@ const SecurityEventSchema = new mongoose.Schema({
 const SecurityEvent = mongoose.model("SecurityEvent", SecurityEventSchema);
 
 const IPBlacklistSchema = new mongoose.Schema({
-  ip: { type: String, unique: true }, reason: { type: String, default: "" },
-  blockedBy: { type: String, default: "system" }, blockedAt: { type: Date, default: Date.now }
+  ip:        { type: String, unique: true },
+  reason:    { type: String, default: "" },
+  blockedBy: { type: String, default: "system" },
+  blockedAt: { type: Date,   default: Date.now }
 });
 const IPBlacklist = mongoose.model("IPBlacklist", IPBlacklistSchema);
 
 const RevokedTokenSchema = new mongoose.Schema({
-  token: { type: String, unique: true }, email: String,
+  token:     { type: String, unique: true },
+  email:     String,
   revokedAt: { type: Date, default: Date.now, expires: 86400 }
 });
 const RevokedToken = mongoose.model("RevokedToken", RevokedTokenSchema);
@@ -186,7 +195,7 @@ async function auditLog(actor, req, action, target, before = null, after = null)
   try {
     const ip = req?.headers?.["x-forwarded-for"] || req?.socket?.remoteAddress || "unknown";
     await Audit.create({ actor, ip, action, target, before, after });
-  } catch(e) { console.error("Audit error:", e.message); }
+  } catch(e) { console.error("Audit log error:", e.message); }
 }
 
 async function logEvent(severity, category, title, description, actor, req, metadata = {}) {
@@ -207,182 +216,72 @@ function trackFailedIP(ip) {
 }
 
 /* ================= FILE UPLOAD ================= */
-const upload = multer({ dest: "uploads/", limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB max
+const upload = multer({ dest: "uploads/" });
 
 /* ================= STATIC ================= */
 app.get("/", (req, res) => res.redirect("/login.html"));
 app.use(express.static(path.resolve(__dirname, "../frontend")));
 
 /* ─────────────────────────────────────────────────────────────
-   SOC AI ASSISTANT PROXY  — POST /api/chat
+   SOC AI ASSISTANT PROXY — POST /api/chat  (Gemini)
 ───────────────────────────────────────────────────────────── */
 app.post("/api/chat", aiLimiter, verifyToken, async (req, res) => {
   try {
     const { messages, systemContext } = req.body;
     if (!messages || !Array.isArray(messages) || messages.length === 0)
       return res.status(400).json({ error: "Messages array required" });
-    const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-    if (!ANTHROPIC_API_KEY)
-      return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured" });
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 600, system: systemContext || "You are a SOC AI assistant for FraudSys. Be concise.", messages: messages.slice(-20) })
-    });
-    const data = await response.json();
-    if (!response.ok) return res.status(502).json({ error: data.error?.message || "Anthropic API error" });
-    res.json({ reply: data.content?.[0]?.text || "No response." });
-  } catch (err) {
-    console.error("AI proxy error:", err.message);
-    res.status(500).json({ error: "AI error: " + err.message });
-  }
-});
 
-/* ─────────────────────────────────────────────────────────────
-   STATS SUMMARY — GET /stats-summary
-   Returns counts only (no heavy document fetch) — fast!
-───────────────────────────────────────────────────────────── */
-app.get("/stats-summary", async (req, res) => {
-  try {
-    const uploadId = req.query.uploadId;
-    const match    = (uploadId && uploadId.match(/^[a-f\d]{24}$/i))
-      ? { uploadId: new mongoose.Types.ObjectId(uploadId) } : {};
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    if (!GEMINI_API_KEY)
+      return res.status(500).json({ error: "GEMINI_API_KEY not set in environment variables" });
 
-    const [counts] = await Result.aggregate([
-      { $match: match },
-      { $group: {
-          _id:       null,
-          total:     { $sum: 1 },
-          high:      { $sum: { $cond: [{ $eq: ["$risk","High"]   }, 1, 0] } },
-          medium:    { $sum: { $cond: [{ $eq: ["$risk","Medium"] }, 1, 0] } },
-          low:       { $sum: { $cond: [{ $eq: ["$risk","Low"]    }, 1, 0] } },
-          anomalies: { $sum: { $cond: ["$anomaly.isAnomaly", 1, 0] } },
-          avgConf:   { $avg: "$confidence" }
-      }}
-    ]);
+    const contents = messages.slice(-20).map(m => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }]
+    }));
 
-    // Top flags
-    const flagAgg = await Result.aggregate([
-      { $match: match },
-      { $unwind: "$flags" },
-      { $group: { _id: "$flags", count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 10 }
-    ]);
-
-    res.json({
-      total:     counts?.total     || 0,
-      high:      counts?.high      || 0,
-      medium:    counts?.medium    || 0,
-      low:       counts?.low       || 0,
-      anomalies: counts?.anomalies || 0,
-      avgConf:   counts?.avgConf   || 0,
-      topFlags:  flagAgg.map(f => ({ flag: f._id, count: f.count }))
-    });
-  } catch (err) { res.status(500).json({ error: "Failed ❌" }); }
-});
-
-/* ─────────────────────────────────────────────────────────────
-   GENERATE SYNTHETIC DATA  — POST /generate-data
-───────────────────────────────────────────────────────────── */
-app.post("/generate-data", uploadLimiter, async (req, res) => {
-  try {
-    const count     = Math.min(parseInt(req.body.count) || 5000, 50000); // max 50k free tier
-    const fraudRate = parseInt(req.body.fraudRate) || 30;
-    const uploader  = req.body.uploadedBy || "admin";
-
-    console.log(`[DATAGEN] Generating ${count.toLocaleString()} rows at ${fraudRate}% fraud...`);
-    const start = Date.now();
-
-    const cities    = ["Mumbai","Delhi","Bangalore","Hyderabad","Chennai","Kolkata","Pune","Ahmedabad","Jaipur","Surat","Lucknow","Kanpur","Nagpur","Indore","Thane","Bhopal","Visakhapatnam","Patna","Vadodara","Ghaziabad","Ludhiana","Agra","Nashik","Faridabad","Meerut","Rajkot","Varanasi","Ranchi","Howrah","Coimbatore","Jabalpur","Gwalior","Vijayawada","Jodhpur","Madurai","Amritsar","Allahabad","Aurangabad","Dhanbad","Srinagar"];
-    const incidents = ["collision","theft","fire","other"];
-    const ri = (mn,mx) => Math.floor(Math.random()*(mx-mn+1))+mn;
-    const rc = arr    => arr[Math.floor(Math.random()*arr.length)];
-
-    const { predict } = require("./predict_batch.js");
-
-    await Result.deleteMany({});
-
-    const uploadRecord = await UploadHistory.create({
-      filename: `synthetic_${count}_fraud${fraudRate}pct.csv`,
-      totalRows: 0, highRisk: 0, mediumRisk: 0, lowRisk: 0, anomalies: 0, uploadedBy: uploader
-    });
-    const uploadId = uploadRecord._id;
-
-    let high = 0, medium = 0, low = 0, anomalies = 0;
-    const CHUNK = 1000; // small chunks = less RAM
-
-    for (let i = 0; i < count; i += CHUNK) {
-      const chunkSize = Math.min(CHUNK, count - i);
-      const results   = [];
-
-      for (let j = 0; j < chunkSize; j++) {
-        const isFraud = Math.random() * 100 < fraudRate;
-        const rec = isFraud ? {
-          amount: ri(800000,2500000), claims: ri(15,35), age: ri(22,65),
-          policyDuration: ri(1,4), incidentType: rc(incidents),
-          witnesses: ri(0,1), policeReport: Math.random() < 0.3,
-          premiumAmount: ri(8000,25000), vehicleAge: ri(0,15), location: rc(cities)
-        } : {
-          amount: ri(50000,600000), claims: ri(1,8), age: ri(22,65),
-          policyDuration: ri(12,60), incidentType: rc(incidents),
-          witnesses: ri(2,5), policeReport: Math.random() < 0.85,
-          premiumAmount: ri(15000,60000), vehicleAge: ri(0,15), location: rc(cities)
-        };
-
-        const p = predict(rec);
-        if      (p.risk === "High")   high++;
-        else if (p.risk === "Medium") medium++;
-        else                          low++;
-        if (p.anomaly?.is_anomaly)    anomalies++;
-
-        results.push({
-          amount: p.amount, claims: p.claims, age: p.age,
-          policyDuration: p.policyDuration, incidentType: p.incidentType,
-          witnesses: p.witnesses, policeReport: p.policeReport,
-          premiumAmount: p.premiumAmount, vehicleAge: p.vehicleAge,
-          location: p.location || "", risk: p.risk, confidence: p.confidence,
-          riskScore: p.risk_score, probabilities: p.probabilities,
-          anomaly: { isAnomaly: p.anomaly.is_anomaly, anomalyScore: p.anomaly.anomaly_score },
-          flags: p.flags || [], uploadId
-        });
-      }
-
-      await Result.insertMany(results, { ordered: false, rawResult: false });
+    if (systemContext) {
+      contents.unshift(
+        { role: "user",  parts: [{ text: systemContext }] },
+        { role: "model", parts: [{ text: "Understood. I am ready to assist." }] }
+      );
     }
 
-    const totalRows = high + medium + low;
-    const totalMs   = Date.now() - start;
-    await UploadHistory.findByIdAndUpdate(uploadId, { totalRows, highRisk: high, mediumRisk: medium, lowRisk: low, anomalies });
-    await logEvent("INFO", "UPLOAD", "Synthetic data generated", `${uploader} generated ${totalRows.toLocaleString()} rows`, uploader, req, { count: totalRows, fraudRate, totalMs });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 600, temperature: 0.7 } })
+      }
+    );
 
-    console.log(`[DATAGEN] ✅ ${totalRows.toLocaleString()} rows in ${totalMs}ms`);
-    res.json({
-      message: `Generated ${totalRows.toLocaleString()} records in ${(totalMs/1000).toFixed(1)}s ✅`,
-      stats: { high, medium, low, anomalies, totalRows }, uploadId,
-      performance: { totalMs, rowsPerSec: Math.round(totalRows / (totalMs / 1000)) }
-    });
+    const data = await response.json();
+    if (!response.ok) {
+      console.error("Gemini error:", JSON.stringify(data));
+      return res.status(502).json({ error: data.error?.message || "Gemini API error" });
+    }
+    res.json({ reply: data.candidates?.[0]?.content?.parts?.[0]?.text || "No response." });
   } catch (err) {
-    console.error("Datagen error:", err.message);
-    res.status(500).json({ error: "Generation failed ❌: " + err.message });
+    console.error("AI proxy error:", err.message);
+    res.status(500).json({ error: "AI service error: " + err.message });
   }
 });
 
 /* ─────────────────────────────────────────────────────────────
-   TOTP 2FA
+   TOTP 2FA  (speakeasy)
 ───────────────────────────────────────────────────────────── */
 app.post("/setup-totp", async (req, res) => {
   try {
     const { email } = req.body;
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ error: "User not found" });
-    const secret     = authenticator.generateSecret();
-    const otpauthUrl = authenticator.keyuri(email, "FraudSys", secret);
-    user.totpSecret  = secret;
+    const secret = speakeasy.generateSecret({ name: `FraudSys (${email})`, issuer: "FraudSys" });
+    user.totpSecret  = secret.base32;
     user.totpEnabled = false;
     await user.save();
-    const qrDataURL = await QRCode.toDataURL(otpauthUrl);
-    res.json({ secret, qrCode: qrDataURL, otpauth: otpauthUrl });
+    const qrDataURL = await QRCode.toDataURL(secret.otpauth_url);
+    res.json({ secret: secret.base32, qrCode: qrDataURL, otpauth: secret.otpauth_url });
   } catch (err) { res.status(500).json({ error: "TOTP setup failed" }); }
 });
 
@@ -391,7 +290,7 @@ app.post("/enable-totp", async (req, res) => {
     const { email, token } = req.body;
     const user = await User.findOne({ email });
     if (!user || !user.totpSecret) return res.status(400).json({ error: "TOTP not set up" });
-    const valid = authenticator.verify({ token: token.replace(/\s/g, ""), secret: user.totpSecret });
+    const valid = speakeasy.totp.verify({ secret: user.totpSecret, encoding: "base32", token: token.replace(/\s/g, ""), window: 1 });
     if (!valid) return res.status(400).json({ error: "Invalid code ❌" });
     user.totpEnabled = true;
     await user.save();
@@ -406,16 +305,16 @@ app.post("/verify-totp", authLimiter, async (req, res) => {
     const user = await User.findOne({ email });
     if (!user || !user.totpSecret || !user.totpEnabled)
       return res.status(400).json({ error: "TOTP not enabled" });
-    const valid = authenticator.verify({ token: token.replace(/\s/g, ""), secret: user.totpSecret });
+    const valid = speakeasy.totp.verify({ secret: user.totpSecret, encoding: "base32", token: token.replace(/\s/g, ""), window: 1 });
     if (!valid) {
       await logEvent("MEDIUM", "AUTH", "TOTP failed", `Invalid TOTP for ${email}`, email, req);
       return res.status(400).json({ error: "Invalid code ❌" });
     }
-    user.lastLogin = new Date();
+    user.lastLogin    = new Date();
     user.failedLogins = 0;
     await user.save();
     const jwtToken = generateToken(user);
-    await logEvent("INFO", "AUTH", "Login successful", `${email} logged in`, email, req, { role: user.role });
+    await logEvent("INFO", "AUTH", "Login successful", `${email} logged in via TOTP`, email, req, { role: user.role });
     await auditLog(email, req, "LOGIN", email, null, { method: "TOTP", role: user.role });
     res.json({ message: "Login successful ✅", token: jwtToken, role: user.role, email: user.email, expiresIn: JWT_EXPIRY });
   } catch (err) { res.status(500).json({ error: "Verification failed" }); }
@@ -426,7 +325,8 @@ app.post("/disable-totp", async (req, res) => {
     const { email } = req.body;
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ error: "User not found" });
-    user.totpEnabled = false; user.totpSecret = null;
+    user.totpEnabled = false;
+    user.totpSecret  = null;
     await user.save();
     await logEvent("INFO", "AUTH", "TOTP disabled", `${email} disabled 2FA`, email, req);
     res.json({ message: "Google Authenticator disabled" });
@@ -435,7 +335,8 @@ app.post("/disable-totp", async (req, res) => {
 
 app.get("/totp-status", async (req, res) => {
   try {
-    const user = await User.findOne({ email: req.query.email });
+    const { email } = req.query;
+    const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ error: "User not found" });
     res.json({ totpEnabled: user.totpEnabled || false });
   } catch (err) { res.status(500).json({ error: "Failed" }); }
@@ -447,8 +348,10 @@ app.get("/totp-status", async (req, res) => {
 app.post("/register", async (req, res) => {
   const { email, password, role } = req.body;
   try {
-    if (await User.findOne({ email })) return res.status(400).json({ error: "User already exists ❌" });
-    await new User({ email, password: await bcrypt.hash(password, 10), role, authProvider: "local" }).save();
+    const existing = await User.findOne({ email });
+    if (existing) return res.status(400).json({ error: "User already exists ❌" });
+    const hashed = await bcrypt.hash(password, 10);
+    await new User({ email, password: hashed, role, authProvider: "local" }).save();
     await logEvent("INFO", "AUTH", "New user registered", `${email} as ${role}`, email, req, { role });
     res.json({ message: "Registered successfully ✅" });
   } catch (err) { res.status(500).json({ error: "Registration failed ❌" }); }
@@ -461,7 +364,7 @@ app.post("/login", authLimiter, async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) {
       trackFailedIP(ip);
-      await logEvent("MEDIUM", "AUTH", "Login failed — unknown user", email, email||"anon", req);
+      await logEvent("MEDIUM", "AUTH", "Login failed — unknown user", `${email}`, email||"anon", req);
       return res.status(401).json({ error: "Invalid credentials ❌" });
     }
     if (user.lockedUntil && user.lockedUntil > new Date()) {
@@ -475,7 +378,7 @@ app.post("/login", authLimiter, async (req, res) => {
         user.lockedUntil = new Date(Date.now() + 15 * 60_000);
         await user.save();
         await logEvent("CRITICAL", "AUTH", "Account locked — brute force", `${email} locked`, email, req, { attempts: user.failedLogins });
-        return res.status(403).json({ error: "Account locked after too many attempts ❌" });
+        return res.status(403).json({ error: "Account locked after too many failed attempts ❌" });
       }
       await user.save();
       await logEvent("MEDIUM", "AUTH", "Failed login", `Wrong password for ${email}`, email, req, { attempts: user.failedLogins });
@@ -485,8 +388,9 @@ app.post("/login", authLimiter, async (req, res) => {
       await logEvent("INFO", "AUTH", "TOTP required", email, email, req);
       return res.json({ requiresTOTP: true, email });
     }
+    const tempToken = generateToken(user);
     await logEvent("INFO", "AUTH", "TOTP setup required", email, email, req);
-    return res.json({ requiresTOTPSetup: true, email, token: generateToken(user), role: user.role });
+    return res.json({ requiresTOTPSetup: true, email, token: tempToken, role: user.role });
   } catch (err) { res.status(500).json({ error: "Login error ❌" }); }
 });
 
@@ -554,7 +458,8 @@ app.get("/security-stats", async (req, res) => {
 
 app.patch("/security-events/:id", async (req, res) => {
   try {
-    res.json(await SecurityEvent.findByIdAndUpdate(req.params.id, { status: req.body.status }, { new: true }));
+    const event = await SecurityEvent.findByIdAndUpdate(req.params.id, { status: req.body.status }, { new: true });
+    res.json(event);
   } catch (err) { res.status(500).json({ error: "Failed ❌" }); }
 });
 
@@ -584,6 +489,7 @@ app.get("/ip-blacklist", verifyToken, async (req, res) => {
   try { res.json(await IPBlacklist.find().sort({ blockedAt: -1 })); }
   catch(e) { res.status(500).json({ error: "Failed" }); }
 });
+
 app.post("/ip-blacklist", verifyToken, async (req, res) => {
   try {
     const { ip, reason } = req.body;
@@ -594,6 +500,7 @@ app.post("/ip-blacklist", verifyToken, async (req, res) => {
     res.json({ message: "IP blocked ✅" });
   } catch(e) { res.status(500).json({ error: "Failed" }); }
 });
+
 app.delete("/ip-blacklist/:ip", verifyToken, async (req, res) => {
   try {
     const ip = decodeURIComponent(req.params.ip);
@@ -611,9 +518,11 @@ app.get("/audit-trail", verifyToken, async (req, res) => {
   try {
     const limit  = parseInt(req.query.limit) || 100;
     const action = req.query.action || null;
-    res.json(await Audit.find(action ? { action } : {}).sort({ timestamp: -1 }).limit(limit));
+    const query  = action ? { action } : {};
+    res.json(await Audit.find(query).sort({ timestamp: -1 }).limit(limit));
   } catch(e) { res.status(500).json({ error: "Failed" }); }
 });
+
 app.get("/revoked-tokens", verifyToken, async (req, res) => {
   try { res.json(await RevokedToken.find().sort({ revokedAt: -1 }).limit(50)); }
   catch(e) { res.status(500).json({ error: "Failed" }); }
@@ -627,35 +536,28 @@ app.get("/geo-stats", async (req, res) => {
     const stats = await Result.aggregate([
       { $match: { location: { $ne: "", $exists: true } } },
       { $group: {
-          _id: "$location",
-          total:     { $sum: 1 },
+          _id: "$location", total: { $sum: 1 },
           high:      { $sum: { $cond: [{ $eq: ["$risk","High"]   }, 1, 0] } },
           medium:    { $sum: { $cond: [{ $eq: ["$risk","Medium"] }, 1, 0] } },
           low:       { $sum: { $cond: [{ $eq: ["$risk","Low"]    }, 1, 0] } },
           anomalies: { $sum: { $cond: ["$anomaly.isAnomaly", 1, 0] } },
           avgScore:  { $avg: "$riskScore" }
       }},
-      { $sort: { total: -1 } },
-      { $limit: 200 }
+      { $sort: { total: -1 } }, { $limit: 200 }
     ]);
     res.json(stats);
   } catch(err) { res.status(500).json({ error: "Failed" }); }
 });
 
 /* ─────────────────────────────────────────────────────────────
-   RESULTS — capped at 5000, uses .select() for speed
+   RESULTS & HISTORY
 ───────────────────────────────────────────────────────────── */
 app.get("/results", async (req, res) => {
   try {
     const uploadId = req.query.uploadId;
     const query    = (uploadId && uploadId.match(/^[a-f\d]{24}$/i)) ? { uploadId } : {};
-    const limit    = Math.min(parseInt(req.query.limit) || 1000, 5000);
-    const results  = await Result.find(query)
-      .select("amount claims age risk riskScore confidence anomaly flags location incidentType witnesses policeReport premiumAmount vehicleAge policyDuration uploadId uploadedAt")
-      .sort({ uploadedAt: -1 })
-      .limit(limit)
-      .lean();
-    res.json(results);
+    const limit    = Math.min(parseInt(req.query.limit) || 1000, 10000);
+    res.json(await Result.find(query).sort({ uploadedAt: -1 }).limit(limit).lean());
   } catch (err) { res.status(500).json({ error: "Failed ❌" }); }
 });
 
@@ -665,29 +567,38 @@ app.get("/upload-history", async (req, res) => {
 });
 
 /* ─────────────────────────────────────────────────────────────
-   CSV UPLOAD + ML — chunked 5k rows
+   CSV UPLOAD + ML
+   (client generates CSV in browser, posts as multipart file)
 ───────────────────────────────────────────────────────────── */
 app.post("/upload", uploadLimiter, upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded ❌" });
+
   const uploader = req.body?.uploadedBy || req.user?.email || "admin";
   await logEvent("INFO", "UPLOAD", "CSV upload started", `${uploader}: ${req.file.originalname}`, uploader, req);
+
   try {
     const { predict } = require("./predict_batch.js");
-    const csvData   = fs.readFileSync(req.file.path, "utf8");
-    const csvLines  = csvData.trim().split("\n");
-    const headers   = csvLines[0].toLowerCase().split(",").map(h => h.trim().replace(/[^a-z_]/g, ""));
-    const idx       = (name) => headers.indexOf(name);
+    const csvData  = fs.readFileSync(req.file.path, "utf8");
+    const csvLines = csvData.trim().split("\n");
+    const headers  = csvLines[0].toLowerCase().split(",").map(h => h.trim().replace(/[^a-z_]/g, ""));
+    const idx      = (name) => headers.indexOf(name);
+
     if (idx("amount") === -1 || idx("claims") === -1)
       return res.status(400).json({ error: "CSV must have 'amount' and 'claims' columns ❌" });
+
     const dataLines = csvLines.slice(1).filter(l => l.trim());
-    const CHUNK     = 2000;
+    const CHUNK     = 5000;
+
     await Result.deleteMany({});
+
     const uploadRecord = await UploadHistory.create({
       filename: req.file.originalname, totalRows: 0,
       highRisk: 0, mediumRisk: 0, lowRisk: 0, anomalies: 0, uploadedBy: uploader
     });
     const uploadId = uploadRecord._id;
+
     let high = 0, medium = 0, low = 0, anomalies = 0, summaryRows = [];
+
     for (let i = 0; i < dataLines.length; i += CHUNK) {
       const results = dataLines.slice(i, i + CHUNK).map(line => {
         const cols      = line.split(",");
@@ -717,21 +628,30 @@ app.post("/upload", uploadLimiter, upload.single("file"), async (req, res) => {
           location: p.location || "", flags: p.flags || [], uploadId
         };
       });
+
       results.forEach(r => {
         if (r.risk === "High") high++;
         else if (r.risk === "Medium") medium++;
         else low++;
         if (r.anomaly?.isAnomaly) anomalies++;
       });
+
       await Result.insertMany(results, { ordered: false });
       if (summaryRows.length < 500) summaryRows = summaryRows.concat(results.slice(0, 500 - summaryRows.length));
     }
+
     const totalRows = high + medium + low;
     await UploadHistory.findByIdAndUpdate(uploadId, { totalRows, highRisk: high, mediumRisk: medium, lowRisk: low, anomalies });
+
     const highPct = totalRows ? (high / totalRows * 100) : 0;
-    if (highPct >= 50) await logEvent("HIGH", "UPLOAD", "Suspicious upload", `${highPct.toFixed(1)}% high-risk`, uploader, req);
-    else if (anomalies > 0) await logEvent("MEDIUM", "ANOMALY", "Anomalies detected", `${anomalies} records`, uploader, req);
-    else await logEvent("INFO", "UPLOAD", "Upload complete", `${totalRows} rows`, uploader, req);
+    if (highPct >= 50) {
+      await logEvent("HIGH", "UPLOAD", "Suspicious upload", `${highPct.toFixed(1)}% high-risk`, uploader, req);
+    } else if (anomalies > 0) {
+      await logEvent("MEDIUM", "ANOMALY", "Anomalies detected", `${anomalies} anomalous records`, uploader, req);
+    } else {
+      await logEvent("INFO", "UPLOAD", "Upload complete", `${totalRows} rows processed`, uploader, req);
+    }
+
     try { fs.unlinkSync(req.file.path); } catch(e) {}
     res.json(summaryRows);
   } catch (err) {
@@ -746,9 +666,9 @@ app.post("/upload", uploadLimiter, upload.single("file"), async (req, res) => {
 ───────────────────────────────────────────────────────────── */
 app.get("/health", (req, res) => {
   const s = mongoose.connection.readyState;
+  const states = { 0:"disconnected",1:"connected",2:"connecting",3:"disconnecting" };
   res.status(s === 1 ? 200 : 503).json({
-    status: s === 1 ? "ok" : "degraded",
-    db: { 0:"disconnected",1:"connected",2:"connecting",3:"disconnecting" }[s] || "unknown",
+    status: s === 1 ? "ok" : "degraded", db: states[s] || "unknown",
     uptime: Math.floor(process.uptime()) + "s",
     memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + "MB",
     timestamp: new Date().toISOString()
