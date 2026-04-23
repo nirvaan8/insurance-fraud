@@ -54,7 +54,6 @@
       <span class="role-badge" id="roleBadge">ROLE: —</span>
       <span class="time-display" id="clock">--:--:--</span>
       <button class="topbar-btn" onclick="refreshData()">↺ REFRESH</button>
-      <button class="topbar-btn" onclick="loadAll()">⊞ LOAD ALL</button>
       <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
     </div>
   </div>
@@ -115,8 +114,6 @@
 
     <!-- ─── UPLOAD ─── -->
     <div id="section-upload" style="display:none">
-
-      <!-- GENERATE SYNTHETIC DATA -->
       <div class="section-panel" style="margin-bottom:16px">
         <div class="section-header"><span class="section-title">⚡ GENERATE SYNTHETIC DATA</span></div>
         <div class="section-body">
@@ -142,8 +139,6 @@
           <div id="genStatus" style="font-family:'Share Tech Mono',monospace;font-size:0.58rem;color:var(--accent);margin-top:12px;min-height:20px"></div>
         </div>
       </div>
-
-      <!-- CSV UPLOAD -->
       <div class="section-panel">
         <div class="section-header"><span class="section-title">CSV FILE UPLOAD</span></div>
         <div class="section-body">
@@ -333,12 +328,20 @@ const email = localStorage.getItem("email") || "";
 
 if (!token) window.location.href = "/login.html";
 
-let allResults = [], filteredRows = [];
-let currentPage = 1;
-const PAGE_SIZE = 100;
+// ── Pagination state — all server-side now, no giant allResults array ──
+let currentPage  = 1;
+let totalPages   = 1;
+let totalRecords = 0;
+let currentUploadId = null;   // tracks which upload is loaded
+const PAGE_SIZE  = 200;       // rows per page (server hard-caps at 500)
+
+// ── Chart / map state ──
 let lineChart, doughnutChart, barChart;
 let geoMap, heatLayer, geoMapInit = false;
 let aiHistory = [], aiThinking = false;
+
+// ── Dashboard summary stats (from server aggregate, not row counting) ──
+let dbStats = { total:0, high:0, medium:0, low:0, anomalies:0, avgConfidence:0 };
 
 document.getElementById("roleBadge").textContent = "ROLE: " + role.toUpperCase();
 document.getElementById("accEmail").textContent  = email;
@@ -394,77 +397,107 @@ function toast(msg, type="info") {
 
 /* ════ API HELPER ════ */
 async function api(url, opts={}) {
-  const res = await fetch(url, { headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"}, ...opts });
+  const res = await fetch(url, {
+    headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},
+    ...opts
+  });
   if (res.status === 401) { localStorage.clear(); window.location.href="/login.html"; }
   return res;
 }
 
-/* ════ DASHBOARD ════ */
-async function loadDashboard(data) {
-  if (!data) {
-    const res = await api("/results?limit=1000");
-    if (!res.ok) return;
-    data = await res.json();
+/* ════ DASHBOARD ════
+   Key change: stats come from the server aggregate in /results response.
+   We never store 100k rows in JS memory.
+════════════════════ */
+async function loadDashboard(previewData, statsOverride, uploadId) {
+  // If we just got data back from an upload/generate response, use it directly
+  if (previewData && statsOverride) {
+    dbStats         = statsOverride;
+    currentUploadId = uploadId || null;
+    currentPage     = 1;
+    totalRecords    = statsOverride.totalRows || statsOverride.total || 0;
+    totalPages      = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
+    updateStatsDisplay();
+    renderTableRows(previewData);
+    updatePager();
+    await loadChartData();
+    return;
   }
-  allResults = data; currentPage = 1;
-  updateStats(data); renderCharts(data); renderTable();
+
+  // Otherwise fetch page 1 from server — stats come back in the same response
+  await fetchPage(1);
 }
 
-async function refreshData() { toast("Refreshing...","info"); await loadDashboard(); toast("Refreshed","success"); }
+async function fetchPage(page, riskFilter) {
+  const filter = riskFilter || document.getElementById("riskFilter").value;
+  let url = `/results?limit=${PAGE_SIZE}&skip=${(page-1)*PAGE_SIZE}`;
+  if (currentUploadId) url += `&uploadId=${currentUploadId}`;
+  if (filter)          url += `&risk=${filter}`;
 
-async function loadAll() {
-  toast("Loading all records...","info");
-  const res = await api("/results?limit=200000");
-  if (!res.ok) return toast("Failed","error");
-  const d = await res.json();
-  allResults = d; currentPage = 1;
-  updateStats(d); renderCharts(d); renderTable();
-  toast(`Loaded ${d.length.toLocaleString()} records`,"success");
+  const res = await api(url);
+  if (!res.ok) return;
+  const data = await res.json();
+
+  // Server now returns { results, total, high, medium, low, anomalies, avgConfidence, totalPages }
+  dbStats = {
+    total:         data.total         || 0,
+    high:          data.high          || 0,
+    medium:        data.medium        || 0,
+    low:           data.low           || 0,
+    anomalies:     data.anomalies     || 0,
+    avgConfidence: data.avgConfidence || 0
+  };
+  totalRecords = data.total    || 0;
+  totalPages   = data.totalPages || Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
+  currentPage  = page;
+
+  updateStatsDisplay();
+  renderTableRows(data.results || []);
+  updatePager();
 }
 
-/* ════ STATS ════ */
-function updateStats(data) {
-  const high = data.filter(r=>r.risk==="High").length;
-  const med  = data.filter(r=>r.risk==="Medium").length;
-  const low  = data.filter(r=>r.risk==="Low").length;
-  const anom = data.filter(r=>r.anomaly?.isAnomaly).length;
-  const conf = data.length ? (data.reduce((s,r)=>s+(r.confidence||0),0)/data.length*100).toFixed(0) : 0;
-  animCount("statTotal",data.length);
-  animCount("statLow",low);
-  animCount("statMed",med);
-  animCount("statHigh",high);
-  animCount("statAnom",anom);
-  document.getElementById("statConf").textContent = conf+"%";
+async function refreshData() {
+  toast("Refreshing...","info");
+  await fetchPage(1);
+  await loadChartData();
+  toast("Refreshed","success");
+}
+
+/* ════ STATS DISPLAY — reads from dbStats, never iterates rows ════ */
+function updateStatsDisplay() {
+  const conf = dbStats.avgConfidence ? (dbStats.avgConfidence * 100).toFixed(0) : 0;
+  animCount("statTotal", dbStats.total);
+  animCount("statLow",   dbStats.low);
+  animCount("statMed",   dbStats.medium);
+  animCount("statHigh",  dbStats.high);
+  animCount("statAnom",  dbStats.anomalies);
+  document.getElementById("statConf").textContent = conf + "%";
 }
 
 function animCount(id, target) {
   const el = document.getElementById(id);
-  gsap.to({v:0},{v:target,duration:1.2,ease:"power2.out",onUpdate:function(){el.textContent=Math.round(this.targets()[0].v).toLocaleString();}});
+  gsap.to({v:0},{v:target,duration:1.2,ease:"power2.out",onUpdate:function(){
+    el.textContent = Math.round(this.targets()[0].v).toLocaleString();
+  }});
 }
 
-/* ════ TABLE + PAGINATION ════ */
-function renderTable() {
-  const filter = document.getElementById("riskFilter").value;
-  filteredRows = filter ? allResults.filter(r=>r.risk===filter) : allResults;
-  const total      = filteredRows.length;
-  const totalPages = Math.max(1, Math.ceil(total/PAGE_SIZE));
-  currentPage      = Math.min(currentPage, totalPages);
-  const start = (currentPage-1)*PAGE_SIZE;
-  const slice = filteredRows.slice(start, start+PAGE_SIZE);
-
+/* ════ TABLE — renders only the current page slice (200 rows max) ════ */
+function renderTableRows(rows) {
   const tb    = document.getElementById("tableBody");
   const empty = document.getElementById("tableEmpty");
-  const pager = document.getElementById("pagerBar");
 
-  document.getElementById("tableCount").textContent =
-    `${total.toLocaleString()} records | Page ${currentPage}/${totalPages}`;
+  if (!rows || !rows.length) {
+    tb.innerHTML = "";
+    empty.style.display = "flex";
+    return;
+  }
+  empty.style.display = "none";
 
-  if (!total) { tb.innerHTML=""; empty.style.display="flex"; pager.style.display="none"; return; }
-  empty.style.display="none";
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
 
-  tb.innerHTML = slice.map((r,i) => `
+  tb.innerHTML = rows.map((r, i) => `
     <tr>
-      <td class="mono-sm">${(start+i+1).toLocaleString()}</td>
+      <td class="mono-sm">${(startIndex + i + 1).toLocaleString()}</td>
       <td>₹${(r.amount||0).toLocaleString()}</td>
       <td>${r.claims||0}</td>
       <td>${r.age||0}</td>
@@ -477,56 +510,125 @@ function renderTable() {
       <td><span class="risk-badge risk-${(r.risk||"low").toLowerCase()}">${r.risk||"Low"}</span></td>
       <td>${((r.confidence||0)*100).toFixed(0)}%</td>
       <td>${r.riskScore||0}</td>
-      <td>${r.anomaly?.isAnomaly?'<span style="color:var(--warning)">YES</span>':'<span style="color:var(--muted)">NO</span>'}</td>
+      <td>${r.anomaly?.isAnomaly
+        ? '<span style="color:var(--warning)">YES</span>'
+        : '<span style="color:var(--muted)">NO</span>'}</td>
       <td>${(r.flags||[]).map(f=>`<span class="flag-chip">${f}</span>`).join("")||"—"}</td>
       <td class="mono-sm">${r.location||"—"}</td>
     </tr>`).join("");
-
-  if (totalPages<=1) { pager.style.display="none"; return; }
-  pager.style.display="flex";
-  document.getElementById("prevBtn").disabled = currentPage<=1;
-  document.getElementById("nextBtn").disabled = currentPage>=totalPages;
-  document.getElementById("pagerInfo").textContent  = `${currentPage} / ${totalPages}`;
-  document.getElementById("pagerRange").textContent =
-    `Showing ${(start+1).toLocaleString()}–${Math.min(start+PAGE_SIZE,total).toLocaleString()} of ${total.toLocaleString()}`;
 }
 
-function changePage(dir) {
-  currentPage += dir;
-  renderTable();
+function updatePager() {
+  const pager = document.getElementById("pagerBar");
+  const filter = document.getElementById("riskFilter").value;
+  const label  = filter ? `${filter.toUpperCase()} — ` : "";
+
+  document.getElementById("tableCount").textContent =
+    `${label}${totalRecords.toLocaleString()} records | Page ${currentPage}/${totalPages}`;
+
+  if (totalPages <= 1) { pager.style.display = "none"; return; }
+  pager.style.display = "flex";
+  document.getElementById("prevBtn").disabled = currentPage <= 1;
+  document.getElementById("nextBtn").disabled = currentPage >= totalPages;
+  document.getElementById("pagerInfo").textContent  = `${currentPage} / ${totalPages}`;
+  const start = (currentPage - 1) * PAGE_SIZE + 1;
+  const end   = Math.min(currentPage * PAGE_SIZE, totalRecords);
+  document.getElementById("pagerRange").textContent =
+    `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${totalRecords.toLocaleString()}`;
+}
+
+async function changePage(dir) {
+  const next = currentPage + dir;
+  if (next < 1 || next > totalPages) return;
+  await fetchPage(next);
   document.getElementById("caseTablePanel").scrollIntoView({behavior:"smooth"});
 }
-function filterTable() { currentPage=1; renderTable(); }
 
-/* ════ CHARTS ════ */
-const C = { accent:"#00ffc8",danger:"#ff2d6b",warning:"#ffaa00",muted:"rgba(74,122,112,0.3)",text:"#4a7a70" };
+async function filterTable() {
+  currentPage = 1;
+  await fetchPage(1);
+}
 
-function renderCharts(data) {
+/* ════ CHARTS — fetched from /results/chart-sample, never from 100k rows ════ */
+const C = { accent:"#00ffc8", danger:"#ff2d6b", warning:"#ffaa00", muted:"rgba(74,122,112,0.3)", text:"#4a7a70" };
+
+async function loadChartData() {
+  let url = "/results/chart-sample";
+  if (currentUploadId) url += `?uploadId=${currentUploadId}`;
+  const res = await api(url);
+  if (!res.ok) return;
+  const { sample, confBuckets } = await res.json();
+  renderCharts(sample || [], confBuckets || []);
+}
+
+function renderCharts(sample, confBuckets) {
   if (lineChart)     lineChart.destroy();
   if (doughnutChart) doughnutChart.destroy();
   if (barChart)      barChart.destroy();
 
-  const sample = data.slice(0,60);
-  lineChart = new Chart(document.getElementById("lineChart"),{
-    type:"line",
-    data:{labels:sample.map((_,i)=>"C"+(i+1)),datasets:[{label:"Claim Amount",data:sample.map(r=>r.amount||0),borderColor:C.accent,backgroundColor:"rgba(0,255,200,0.05)",borderWidth:1.5,pointBackgroundColor:C.accent,pointRadius:2,tension:0.3}]},
-    options:{responsive:true,plugins:{legend:{labels:{color:C.text,font:{size:10}}}},scales:{x:{ticks:{color:C.text,font:{size:9},maxTicksLimit:10},grid:{color:C.muted}},y:{ticks:{color:C.text,font:{size:9},callback:v=>"₹"+(v>=100000?(v/100000).toFixed(0)+"L":v.toLocaleString())},grid:{color:C.muted}}}}
+  // Line chart — claim amounts from sample
+  lineChart = new Chart(document.getElementById("lineChart"), {
+    type: "line",
+    data: {
+      labels: sample.map((_,i) => "C"+(i+1)),
+      datasets: [{
+        label: "Claim Amount",
+        data: sample.map(r => r.amount||0),
+        borderColor: C.accent,
+        backgroundColor: "rgba(0,255,200,0.05)",
+        borderWidth: 1.5,
+        pointBackgroundColor: C.accent,
+        pointRadius: 2,
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: C.text, font: { size: 10 } } } },
+      scales: {
+        x: { ticks: { color: C.text, font: { size: 9 }, maxTicksLimit: 10 }, grid: { color: C.muted } },
+        y: { ticks: { color: C.text, font: { size: 9 }, callback: v => "₹"+(v>=100000?(v/100000).toFixed(0)+"L":v.toLocaleString()) }, grid: { color: C.muted } }
+      }
+    }
   });
 
-  const high=data.filter(r=>r.risk==="High").length;
-  const med =data.filter(r=>r.risk==="Medium").length;
-  const low =data.filter(r=>r.risk==="Low").length;
-  doughnutChart = new Chart(document.getElementById("doughnutChart"),{
-    type:"doughnut",
-    data:{labels:["Low","Medium","High"],datasets:[{data:[low,med,high],backgroundColor:[C.accent,C.warning,C.danger],borderWidth:0}]},
-    options:{responsive:true,cutout:"65%",plugins:{legend:{labels:{color:C.text,font:{size:10},boxWidth:10}}}}
+  // Doughnut — use dbStats (already aggregated by server, no row iteration)
+  doughnutChart = new Chart(document.getElementById("doughnutChart"), {
+    type: "doughnut",
+    data: {
+      labels: ["Low","Medium","High"],
+      datasets: [{ data: [dbStats.low, dbStats.medium, dbStats.high], backgroundColor: [C.accent, C.warning, C.danger], borderWidth: 0 }]
+    },
+    options: { responsive: true, cutout: "65%", plugins: { legend: { labels: { color: C.text, font: { size: 10 }, boxWidth: 10 } } } }
   });
 
-  const bands=[0,10,20,30,40,50,60,70,80,90];
-  barChart = new Chart(document.getElementById("barChart"),{
-    type:"bar",
-    data:{labels:bands.map(b=>b+"%"),datasets:[{label:"Records",data:bands.map(b=>data.filter(r=>{const c=(r.confidence||0)*100;return c>=b&&c<b+10;}).length),backgroundColor:"rgba(0,255,200,0.35)",borderColor:C.accent,borderWidth:1}]},
-    options:{responsive:true,plugins:{legend:{labels:{color:C.text,font:{size:10}}}},scales:{x:{ticks:{color:C.text,font:{size:9}},grid:{color:C.muted}},y:{ticks:{color:C.text,font:{size:9}},grid:{color:C.muted}}}}
+  // Bar chart — confidence distribution from server $bucket aggregation
+  const bucketLabels = ["0%","10%","20%","30%","40%","50%","60%","70%","80%","90%"];
+  const bucketCounts = bucketLabels.map((_, i) => {
+    const found = confBuckets.find(b => b._id === i * 10);
+    return found ? found.count : 0;
+  });
+
+  barChart = new Chart(document.getElementById("barChart"), {
+    type: "bar",
+    data: {
+      labels: bucketLabels,
+      datasets: [{
+        label: "Records",
+        data: bucketCounts,
+        backgroundColor: "rgba(0,255,200,0.35)",
+        borderColor: C.accent,
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: C.text, font: { size: 10 } } } },
+      scales: {
+        x: { ticks: { color: C.text, font: { size: 9 } }, grid: { color: C.muted } },
+        y: { ticks: { color: C.text, font: { size: 9 } }, grid: { color: C.muted } }
+      }
+    }
   });
 }
 
@@ -538,24 +640,25 @@ async function quickGen(count, fraudRate) {
   const t0 = Date.now();
   try {
     const res  = await fetch("/generate-data", {
-      method:"POST",
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},
-      body:JSON.stringify({ count, fraudRate, uploadedBy: email })
+      method: "POST",
+      headers: { "Content-Type":"application/json","Authorization":"Bearer "+token },
+      body: JSON.stringify({ count, fraudRate, uploadedBy: email })
     });
     const data = await res.json();
     if (res.ok) {
       const sec = ((Date.now()-t0)/1000).toFixed(1);
       st.style.color = "var(--success)";
       st.textContent = `✅ ${data.stats.totalRows.toLocaleString()} rows in ${sec}s — High: ${data.stats.high.toLocaleString()}, Med: ${data.stats.medium.toLocaleString()}, Low: ${data.stats.low.toLocaleString()}, Anomalies: ${data.stats.anomalies.toLocaleString()} (${data.performance.rowsPerSec.toLocaleString()} rows/sec)`;
-      toast(`Generated ${data.stats.totalRows.toLocaleString()} records in ${sec}s`,"success");
-      setTimeout(async () => {
-        await loadDashboard();
-        showSection("dashboard", document.getElementById("nav-dashboard"));
-      }, 1500);
+      toast(`Generated ${data.stats.totalRows.toLocaleString()} records in ${sec}s`, "success");
+      // Use preview + stats returned directly — don't re-fetch 100k rows
+      currentUploadId = data.uploadId || null;
+      await loadDashboard(data.preview, data.stats, currentUploadId);
+      await loadChartData();
+      showSection("dashboard", document.getElementById("nav-dashboard"));
     } else {
       st.style.color = "var(--danger)";
       st.textContent = "❌ " + (data.error || "Generation failed");
-      toast(data.error || "Generation failed","error");
+      toast(data.error || "Generation failed", "error");
     }
   } catch(e) {
     st.style.color = "var(--danger)";
@@ -588,16 +691,22 @@ async function uploadCSV() {
   try {
     fillEl.style.width = "55%";
     textEl.textContent = "Running ML scoring...";
-    const res  = await fetch("/upload",{method:"POST",headers:{"Authorization":"Bearer "+token},body:form});
+    const res  = await fetch("/upload", { method:"POST", headers:{"Authorization":"Bearer "+token}, body:form });
     const data = await res.json();
     fillEl.style.width = "100%";
+
     if (res.ok) {
-      textEl.textContent   = `✅ ${data.length.toLocaleString()} rows processed`;
+      // Server now returns { preview, stats, uploadId } — not a giant array
+      const total = data.stats?.totalRows || 0;
+      textEl.textContent   = `✅ ${total.toLocaleString()} rows processed`;
       statusEl.style.color = "var(--success)";
-      statusEl.textContent = `✅ Upload complete — ${data.length.toLocaleString()} rows analyzed`;
-      toast(`Upload complete — ${data.length.toLocaleString()} rows`,"success");
-      await loadDashboard(data);
-      showSection("dashboard",document.getElementById("nav-dashboard"));
+      statusEl.textContent = `✅ Upload complete — ${total.toLocaleString()} rows analyzed`;
+      toast(`Upload complete — ${total.toLocaleString()} rows`, "success");
+
+      currentUploadId = data.uploadId || null;
+      await loadDashboard(data.preview, data.stats, currentUploadId);
+      await loadChartData();
+      showSection("dashboard", document.getElementById("nav-dashboard"));
     } else {
       textEl.textContent   = "❌ " + (data.error||"Upload failed");
       statusEl.style.color = "var(--danger)";
@@ -611,7 +720,7 @@ async function uploadCSV() {
     toast("Network error","error");
   } finally {
     btn.disabled = false;
-    setTimeout(()=>{ progressEl.style.display="none"; fillEl.style.width="0%"; },4000);
+    setTimeout(() => { progressEl.style.display="none"; fillEl.style.width="0%"; }, 4000);
   }
 }
 
@@ -638,14 +747,13 @@ async function loadHistory() {
 }
 
 async function loadUploadResults(uploadId, filename) {
-  toast(`Loading ${filename}...`,"info");
-  const res = await api(`/results?uploadId=${uploadId}&limit=200000`);
-  if (!res.ok) return toast("Failed to load","error");
-  const d = await res.json();
-  allResults = d; currentPage = 1;
-  updateStats(d); renderCharts(d); renderTable();
-  showSection("dashboard",document.getElementById("nav-dashboard"));
-  toast(`Loaded ${d.length.toLocaleString()} records from "${filename}"`,"success");
+  toast(`Loading ${filename}...`, "info");
+  currentUploadId = uploadId;
+  currentPage     = 1;
+  await fetchPage(1);
+  await loadChartData();
+  showSection("dashboard", document.getElementById("nav-dashboard"));
+  toast(`Loaded records from "${filename}"`, "success");
 }
 
 /* ════ USERS ════ */
@@ -653,9 +761,9 @@ async function loadUsers() {
   const res  = await api("/users");
   if (!res.ok) return;
   const data = await res.json();
-  const admins  = data.filter(u=>u.role==="admin").length;
+  const admins   = data.filter(u=>u.role==="admin").length;
   const analysts = data.filter(u=>u.role==="analyst").length;
-  const locked  = data.filter(u=>u.lockedUntil&&new Date(u.lockedUntil)>new Date()).length;
+  const locked   = data.filter(u=>u.lockedUntil&&new Date(u.lockedUntil)>new Date()).length;
   document.getElementById("userStats").innerHTML=`
     <div class="admin-card cyan"><div class="admin-card-label">TOTAL USERS</div><div class="admin-card-value">${data.length}</div></div>
     <div class="admin-card green"><div class="admin-card-label">ADMINS</div><div class="admin-card-value">${admins}</div></div>
@@ -665,8 +773,8 @@ async function loadUsers() {
   if (!data.length) { tb.innerHTML=""; document.getElementById("usersEmpty").style.display="flex"; return; }
   document.getElementById("usersEmpty").style.display="none";
   tb.innerHTML = data.map(u=>{
-    const isLocked = u.lockedUntil&&new Date(u.lockedUntil)>new Date();
-    return`<tr>
+    const isLocked = u.lockedUntil && new Date(u.lockedUntil) > new Date();
+    return `<tr>
       <td class="mono-sm">${u.email}</td>
       <td><span class="risk-badge ${u.role==="admin"?"risk-high":"risk-low"}">${u.role.toUpperCase()}</span></td>
       <td style="text-transform:capitalize">${u.authProvider||"local"}</td>
@@ -678,31 +786,31 @@ async function loadUsers() {
 }
 
 async function unlockUser(em) {
-  const res = await api("/unlock-account",{method:"POST",body:JSON.stringify({email:em})});
-  if(res.ok){toast(`${em} unlocked`,"success");loadUsers();}
+  const res = await api("/unlock-account", {method:"POST", body:JSON.stringify({email:em})});
+  if (res.ok) { toast(`${em} unlocked`,"success"); loadUsers(); }
   else toast("Failed","error");
 }
 
 /* ════ SOC ════ */
 async function loadSOC() {
-  const sev=document.getElementById("sevFilter").value;
-  const cat=document.getElementById("catFilter").value;
-  let url="/security-events?limit=100";
-  if(sev)url+="&severity="+sev;
-  if(cat)url+="&category="+cat;
-  const [evRes,stRes]=await Promise.all([api(url),api("/security-stats")]);
-  if(!evRes.ok)return;
-  const events=await evRes.json();
-  const stats=stRes.ok?await stRes.json():{};
+  const sev = document.getElementById("sevFilter").value;
+  const cat = document.getElementById("catFilter").value;
+  let url = "/security-events?limit=100";
+  if (sev) url += "&severity="+sev;
+  if (cat) url += "&category="+cat;
+  const [evRes, stRes] = await Promise.all([api(url), api("/security-stats")]);
+  if (!evRes.ok) return;
+  const events = await evRes.json();
+  const stats  = stRes.ok ? await stRes.json() : {};
   document.getElementById("socStats").innerHTML=`
     <div class="admin-card cyan"><div class="admin-card-label">TOTAL</div><div class="admin-card-value">${stats.total||0}</div></div>
     <div class="admin-card red"><div class="admin-card-label">CRITICAL</div><div class="admin-card-value">${stats.critical||0}</div></div>
     <div class="admin-card orange"><div class="admin-card-label">HIGH</div><div class="admin-card-value">${stats.high||0}</div></div>
     <div class="admin-card green"><div class="admin-card-label">OPEN</div><div class="admin-card-value">${stats.open||0}</div></div>`;
-  const tb=document.getElementById("socBody");
-  if(!events.length){tb.innerHTML="";document.getElementById("socEmpty").style.display="flex";return;}
+  const tb = document.getElementById("socBody");
+  if (!events.length) { tb.innerHTML=""; document.getElementById("socEmpty").style.display="flex"; return; }
   document.getElementById("socEmpty").style.display="none";
-  tb.innerHTML=events.map(e=>`<tr>
+  tb.innerHTML = events.map(e=>`<tr>
     <td class="mono-sm">${new Date(e.timestamp).toLocaleString("en-IN")}</td>
     <td><span class="sev-badge sev-${e.severity}">${e.severity}</span></td>
     <td class="mono-sm">${e.category}</td>
@@ -717,17 +825,18 @@ async function loadSOC() {
   </tr>`).join("");
 }
 
-async function updateSOCStatus(id,status){
-  await api(`/security-events/${id}`,{method:"PATCH",body:JSON.stringify({status})});
+async function updateSOCStatus(id, status) {
+  await api(`/security-events/${id}`, {method:"PATCH", body:JSON.stringify({status})});
   toast(`Status → ${status}`,"info");
 }
 
-async function loadAudit(){
-  const res=await api("/audit-trail?limit=50");if(!res.ok)return;
-  const data=await res.json();const tb=document.getElementById("auditBody");
-  if(!data.length){tb.innerHTML="";document.getElementById("auditEmpty").style.display="flex";return;}
+async function loadAudit() {
+  const res  = await api("/audit-trail?limit=50"); if (!res.ok) return;
+  const data = await res.json();
+  const tb   = document.getElementById("auditBody");
+  if (!data.length) { tb.innerHTML=""; document.getElementById("auditEmpty").style.display="flex"; return; }
   document.getElementById("auditEmpty").style.display="none";
-  tb.innerHTML=data.map(a=>`<tr>
+  tb.innerHTML = data.map(a=>`<tr>
     <td class="mono-sm">${new Date(a.timestamp).toLocaleString("en-IN")}</td>
     <td class="mono-sm">${a.actor||"—"}</td>
     <td><span class="flag-chip">${a.action||"—"}</span></td>
@@ -736,12 +845,13 @@ async function loadAudit(){
   </tr>`).join("");
 }
 
-async function loadIPBlacklist(){
-  const res=await api("/ip-blacklist");if(!res.ok)return;
-  const data=await res.json();const tb=document.getElementById("ipBody");
-  if(!data.length){tb.innerHTML="";document.getElementById("ipEmpty").style.display="flex";return;}
+async function loadIPBlacklist() {
+  const res  = await api("/ip-blacklist"); if (!res.ok) return;
+  const data = await res.json();
+  const tb   = document.getElementById("ipBody");
+  if (!data.length) { tb.innerHTML=""; document.getElementById("ipEmpty").style.display="flex"; return; }
   document.getElementById("ipEmpty").style.display="none";
-  tb.innerHTML=data.map(ip=>`<tr>
+  tb.innerHTML = data.map(ip=>`<tr>
     <td class="mono-sm">${ip.ip}</td><td>${ip.reason||"—"}</td>
     <td class="mono-sm">${ip.blockedBy||"—"}</td>
     <td class="mono-sm">${new Date(ip.blockedAt).toLocaleString("en-IN")}</td>
@@ -749,23 +859,23 @@ async function loadIPBlacklist(){
   </tr>`).join("");
 }
 
-async function blockIPFn(){
-  const ip=document.getElementById("blockIP").value.trim();
-  const reason=document.getElementById("blockReason").value.trim();
-  if(!ip)return toast("Enter an IP address","error");
-  const res=await api("/ip-blacklist",{method:"POST",body:JSON.stringify({ip,reason})});
-  if(res.ok){toast(`${ip} blocked`,"success");document.getElementById("blockIP").value="";document.getElementById("blockReason").value="";loadIPBlacklist();}
+async function blockIPFn() {
+  const ip     = document.getElementById("blockIP").value.trim();
+  const reason = document.getElementById("blockReason").value.trim();
+  if (!ip) return toast("Enter an IP address","error");
+  const res = await api("/ip-blacklist", {method:"POST", body:JSON.stringify({ip,reason})});
+  if (res.ok) { toast(`${ip} blocked`,"success"); document.getElementById("blockIP").value=""; document.getElementById("blockReason").value=""; loadIPBlacklist(); }
   else toast("Failed to block IP","error");
 }
 
-async function unblockIPFn(ip){
-  const res=await api(`/ip-blacklist/${encodeURIComponent(ip)}`,{method:"DELETE"});
-  if(res.ok){toast(`${ip} unblocked`,"success");loadIPBlacklist();}
+async function unblockIPFn(ip) {
+  const res = await api(`/ip-blacklist/${encodeURIComponent(ip)}`, {method:"DELETE"});
+  if (res.ok) { toast(`${ip} unblocked`,"success"); loadIPBlacklist(); }
   else toast("Failed","error");
 }
 
 /* ════ GEO HEATMAP ════ */
-const CITY_COORDS={
+const CITY_COORDS = {
   "Mumbai":[19.076,72.8777],"Delhi":[28.6139,77.209],"Bangalore":[12.9716,77.5946],
   "Hyderabad":[17.385,78.4867],"Chennai":[13.0827,80.2707],"Kolkata":[22.5726,88.3639],
   "Pune":[18.5204,73.8567],"Ahmedabad":[23.0225,72.5714],"Jaipur":[26.9124,75.7873],
@@ -781,30 +891,30 @@ const CITY_COORDS={
   "Gwalior":[26.2183,78.1828],"Vijayawada":[16.5062,80.648],"Jodhpur":[26.2389,73.0243],"Madurai":[9.9252,78.1198]
 };
 
-async function loadGeoMap(){
-  const res=await api("/geo-stats");if(!res.ok)return;
-  const data=await res.json();
-  if(!geoMapInit){
-    geoMap=L.map("geoMap",{center:[20.5937,78.9629],zoom:5});
+async function loadGeoMap() {
+  const res  = await api("/geo-stats"); if (!res.ok) return;
+  const data = await res.json();
+  if (!geoMapInit) {
+    geoMap = L.map("geoMap",{center:[20.5937,78.9629],zoom:5});
     L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{attribution:"© CartoDB",maxZoom:18}).addTo(geoMap);
-    geoMapInit=true;
+    geoMapInit = true;
   }
-  if(heatLayer)geoMap.removeLayer(heatLayer);
-  const heatData=[];
-  const tb=document.getElementById("geoTableBody");
-  if(!data.length){document.getElementById("geoEmpty").style.display="flex";tb.innerHTML="";return;}
+  if (heatLayer) geoMap.removeLayer(heatLayer);
+  const heatData = [];
+  const tb = document.getElementById("geoTableBody");
+  if (!data.length) { document.getElementById("geoEmpty").style.display="flex"; tb.innerHTML=""; return; }
   document.getElementById("geoEmpty").style.display="none";
-  data.forEach(c=>{
-    const coords=CITY_COORDS[c._id];if(!coords)return;
-    heatData.push([coords[0],coords[1],(c.total>0?c.high/c.total:0)+0.1]);
+  data.forEach(c => {
+    const coords = CITY_COORDS[c._id]; if (!coords) return;
+    heatData.push([coords[0], coords[1], (c.total>0?c.high/c.total:0)+0.1]);
     L.circleMarker(coords,{radius:6,color:"#00ffc8",fillColor:"#00ffc8",fillOpacity:0.6,weight:1})
       .bindPopup(`<div style="font-family:monospace;font-size:11px;color:#00ffc8;background:#020d0a;padding:8px;border:1px solid #0a3a28">
         <b>${c._id}</b><br>Total: ${c.total} | High: ${c.high}<br>
         Fraud: ${c.total>0?((c.high/c.total)*100).toFixed(1):0}% | Anomalies: ${c.anomalies}
       </div>`).addTo(geoMap);
   });
-  heatLayer=L.heatLayer(heatData,{radius:30,blur:20,maxZoom:8,gradient:{0.2:"#00ffc8",0.5:"#ffaa00",1.0:"#ff2d6b"}}).addTo(geoMap);
-  tb.innerHTML=[...data].sort((a,b)=>b.total-a.total).map(c=>`
+  heatLayer = L.heatLayer(heatData,{radius:30,blur:20,maxZoom:8,gradient:{0.2:"#00ffc8",0.5:"#ffaa00",1.0:"#ff2d6b"}}).addTo(geoMap);
+  tb.innerHTML = [...data].sort((a,b)=>b.total-a.total).map(c=>`
     <tr>
       <td>${c._id}</td><td>${(c.total||0).toLocaleString()}</td>
       <td style="color:var(--danger)">${(c.high||0).toLocaleString()}</td>
@@ -817,37 +927,39 @@ async function loadGeoMap(){
 }
 
 /* ════ ACCOUNT ════ */
-async function loadTOTPStatus(){
-  const res=await fetch(`/totp-status?email=${encodeURIComponent(email)}`);
-  if(!res.ok)return;const data=await res.json();
-  const el=document.getElementById("totpStatusText");
-  const btn=document.getElementById("disableTotpBtn");
-  if(data.totpEnabled){el.textContent="ENABLED ✓";el.style.color="var(--success)";btn.style.display="inline-block";}
-  else{el.textContent="DISABLED";el.style.color="var(--danger)";btn.style.display="none";}
+async function loadTOTPStatus() {
+  const res  = await fetch(`/totp-status?email=${encodeURIComponent(email)}`);
+  if (!res.ok) return;
+  const data = await res.json();
+  const el   = document.getElementById("totpStatusText");
+  const btn  = document.getElementById("disableTotpBtn");
+  if (data.totpEnabled) { el.textContent="ENABLED ✓"; el.style.color="var(--success)"; btn.style.display="inline-block"; }
+  else { el.textContent="DISABLED"; el.style.color="var(--danger)"; btn.style.display="none"; }
 }
 
-async function disableTOTP(){
-  if(!confirm("Disable Google Authenticator?"))return;
-  const res=await fetch("/disable-totp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
-  if(res.ok){toast("Authenticator disabled","info");loadTOTPStatus();}
+async function disableTOTP() {
+  if (!confirm("Disable Google Authenticator?")) return;
+  const res = await fetch("/disable-totp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
+  if (res.ok) { toast("Authenticator disabled","info"); loadTOTPStatus(); }
   else toast("Failed","error");
 }
 
-async function doLogout(){
+async function doLogout() {
   await fetch("/logout",{method:"POST",headers:{"Authorization":"Bearer "+token}}).catch(()=>{});
-  localStorage.clear();window.location.href="/login.html";
+  localStorage.clear();
+  window.location.href = "/login.html";
 }
 
-function toggleTheme(){
-  const isDark=document.documentElement.getAttribute("data-theme")!=="light";
-  document.documentElement.setAttribute("data-theme",isDark?"light":"dark");
-  document.getElementById("themeLabel").textContent=isDark?"LIGHT MODE":"DARK MODE";
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute("data-theme") !== "light";
+  document.documentElement.setAttribute("data-theme", isDark ? "light" : "dark");
+  document.getElementById("themeLabel").textContent = isDark ? "LIGHT MODE" : "DARK MODE";
 }
 
 /* ════ AI SOC ASSISTANT ════ */
-function toggleAI(){ document.getElementById("aiPanel").classList.toggle("open"); }
+function toggleAI() { document.getElementById("aiPanel").classList.toggle("open"); }
 
-async function sendAI(){
+async function sendAI() {
   if (aiThinking) return;
   const input = document.getElementById("aiInput");
   const msg   = input.value.trim();
@@ -858,23 +970,17 @@ async function sendAI(){
   msgs.innerHTML += `<div class="ai-msg user">${msg}</div>`;
   msgs.scrollTop  = msgs.scrollHeight;
 
-  const high    = allResults.filter(r=>r.risk==="High").length;
-  const med     = allResults.filter(r=>r.risk==="Medium").length;
-  const low     = allResults.filter(r=>r.risk==="Low").length;
-  const anom    = allResults.filter(r=>r.anomaly?.isAnomaly).length;
-  const flags   = [...new Set(allResults.flatMap(r=>r.flags||[]))].slice(0,8).join(", ");
-  const avgConf = allResults.length ? (allResults.reduce((s,r)=>s+(r.confidence||0),0)/allResults.length*100).toFixed(0) : 0;
-
+  // Use dbStats — no row iteration needed
+  const conf = dbStats.avgConfidence ? (dbStats.avgConfidence * 100).toFixed(0) : 0;
   const systemContext = `You are a SOC (Security Operations Center) AI assistant embedded in FraudSys, a real-time insurance fraud detection platform.
 
 Current live dashboard statistics:
-- Total records analyzed: ${allResults.length.toLocaleString()}
-- High risk: ${high.toLocaleString()} (${allResults.length>0?((high/allResults.length)*100).toFixed(1):0}%)
-- Medium risk: ${med.toLocaleString()}
-- Low risk: ${low.toLocaleString()}
-- Anomalies detected: ${anom.toLocaleString()}
-- Average model confidence: ${avgConf}%
-- Top fraud flags: ${flags||"none yet"}
+- Total records analyzed: ${dbStats.total.toLocaleString()}
+- High risk: ${dbStats.high.toLocaleString()} (${dbStats.total>0?((dbStats.high/dbStats.total)*100).toFixed(1):0}%)
+- Medium risk: ${dbStats.medium.toLocaleString()}
+- Low risk: ${dbStats.low.toLocaleString()}
+- Anomalies detected: ${dbStats.anomalies.toLocaleString()}
+- Average model confidence: ${conf}%
 
 Be concise, professional, and actionable. Use bullet points for lists.`;
 
@@ -890,9 +996,9 @@ Be concise, professional, and actionable. Use bullet points for lists.`;
   aiThinking = true;
 
   try {
-    const res = await fetch("/api/chat", {
+    const res  = await fetch("/api/chat", {
       method:  "POST",
-      headers: { "Content-Type":"application/json", "Authorization":"Bearer "+token },
+      headers: { "Content-Type":"application/json","Authorization":"Bearer "+token },
       body:    JSON.stringify({ messages: aiHistory, systemContext })
     });
     const data = await res.json();
@@ -917,6 +1023,7 @@ Be concise, professional, and actionable. Use bullet points for lists.`;
 
 /* ════ INIT ════ */
 loadDashboard();
+loadChartData();
 </script>
 </body>
 </html>
