@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FraudSys — Login</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#020d0a;color:#c8e6dc;font-family:'Rajdhani',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  canvas{position:fixed;inset:0;z-index:0}
+  .scanline{position:fixed;inset:0;pointer-events:none;z-index:1;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,200,0.012) 2px,rgba(0,255,200,0.012) 4px)}
+  .wrap{position:relative;z-index:2;width:100%;max-width:400px;padding:20px}
+  .logo-area{text-align:center;margin-bottom:32px}
+  .logo{font-family:'Orbitron',monospace;font-size:2rem;font-weight:900;color:#00ffc8;letter-spacing:6px;text-shadow:0 0 30px rgba(0,255,200,0.5)}
+  .logo-sub{font-family:'Share Tech Mono',monospace;font-size:0.52rem;letter-spacing:3px;color:#4a7a70;margin-top:4px}
+  .panel{background:#041a12;border:1px solid #0a3a28;padding:32px}
+  .tabs{display:flex;margin-bottom:28px;border-bottom:1px solid #0a3a28}
+  .tab{flex:1;padding:10px;text-align:center;font-family:'Share Tech Mono',monospace;font-size:0.6rem;letter-spacing:2px;color:#4a7a70;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s}
+  .tab.active{color:#00ffc8;border-bottom-color:#00ffc8}
+  .form{display:none}
+  .form.active{display:block}
+  .field{margin-bottom:18px}
+  .field label{display:block;font-family:'Share Tech Mono',monospace;font-size:0.52rem;letter-spacing:2px;color:#4a7a70;margin-bottom:7px}
+  .field input,.field select{width:100%;padding:10px 12px;background:#020d0a;border:1px solid #0a3a28;color:#c8e6dc;font-family:'Rajdhani',sans-serif;font-size:0.9rem;outline:none;transition:border-color 0.2s}
+  .field input:focus,.field select:focus{border-color:#00ffc8}
+  .field select option{background:#041a12}
+  .submit-btn{width:100%;padding:12px;background:transparent;border:1px solid #00ffc8;color:#00ffc8;font-family:'Orbitron',monospace;font-size:0.65rem;font-weight:700;letter-spacing:3px;cursor:pointer;transition:all 0.2s;margin-top:4px}
+  .submit-btn:hover{background:rgba(0,255,200,0.1);box-shadow:0 0 20px rgba(0,255,200,0.2)}
+  .submit-btn:disabled{opacity:0.4;cursor:not-allowed}
+  .divider{display:flex;align-items:center;gap:12px;margin:20px 0}
+  .divider::before,.divider::after{content:'';flex:1;height:1px;background:#0a3a28}
+  .divider span{font-family:'Share Tech Mono',monospace;font-size:0.5rem;color:#4a7a70;letter-spacing:2px}
+  .google-btn{width:100%;padding:11px;background:transparent;border:1px solid #0a3a28;color:#c8e6dc;font-family:'Rajdhani',sans-serif;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:10px}
+  .google-btn:hover{border-color:#4a7a70;background:rgba(255,255,255,0.03)}
+  .msg{font-family:'Share Tech Mono',monospace;font-size:0.58rem;letter-spacing:1px;padding:8px 12px;margin-top:14px;display:none}
+  .msg.error{border:1px solid #ff2d6b;color:#ff2d6b;background:rgba(255,45,107,0.06)}
+  .msg.success{border:1px solid #00cc88;color:#00cc88;background:rgba(0,204,136,0.06)}
+  /* TOTP step */
+  #totpStep,#setupStep{display:none}
+  .totp-code-input{text-align:center;font-size:1.6rem;letter-spacing:8px;font-family:'Orbitron',monospace}
+  .back-link{font-family:'Share Tech Mono',monospace;font-size:0.54rem;color:#4a7a70;cursor:pointer;text-align:center;margin-top:12px;display:block}
+  .back-link:hover{color:#00ffc8}
+  .step-title{font-family:'Orbitron',monospace;font-size:0.7rem;letter-spacing:2px;color:#00ffc8;margin-bottom:8px}
+  .step-desc{font-family:'Share Tech Mono',monospace;font-size:0.54rem;color:#4a7a70;margin-bottom:20px;line-height:1.6}
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<div class="scanline"></div>
+
+<div class="wrap">
+  <div class="logo-area">
+    <div class="logo">FRAUDSYS</div>
+    <div class="logo-sub">// THREAT INTELLIGENCE PLATFORM</div>
+  </div>
+
+  <div class="panel">
+    <!-- Login / Register tabs -->
+    <div id="authTabs">
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('login')">LOGIN</div>
+        <div class="tab" onclick="switchTab('register')">REGISTER</div>
+      </div>
+
+      <!-- LOGIN FORM -->
+      <div class="form active" id="loginForm">
+        <div class="field">
+          <label>EMAIL ADDRESS</label>
+          <input type="email" id="loginEmail" placeholder="analyst@fraudsys.com">
+        </div>
+        <div class="field">
+          <label>PASSWORD</label>
+          <input type="password" id="loginPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+        </div>
+        <button class="submit-btn" onclick="doLogin()" id="loginBtn">AUTHENTICATE</button>
+        <div class="divider"><span>OR</span></div>
+        <div id="googleSignIn"></div>
+        <div class="msg" id="loginMsg"></div>
+      </div>
+
+      <!-- REGISTER FORM -->
+      <div class="form" id="registerForm">
+        <div class="field">
+          <label>EMAIL ADDRESS</label>
+          <input type="email" id="regEmail" placeholder="you@example.com">
+        </div>
+        <div class="field">
+          <label>PASSWORD</label>
+          <input type="password" id="regPass" placeholder="min 6 characters">
+        </div>
+        <div class="field">
+          <label>ROLE</label>
+          <select id="regRole">
+            <option value="analyst">Analyst</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <button class="submit-btn" onclick="doRegister()">CREATE ACCOUNT</button>
+        <div class="msg" id="regMsg"></div>
+      </div>
+    </div>
+
+    <!-- TOTP VERIFY STEP -->
+    <div id="totpStep">
+      <div class="step-title">2FA VERIFICATION</div>
+      <div class="step-desc">Enter the 6-digit code from your<br>Google Authenticator app</div>
+      <div class="field">
+        <label>AUTHENTICATOR CODE</label>
+        <input type="text" id="totpCode" class="totp-code-input" maxlength="6" placeholder="000000" inputmode="numeric" onkeydown="if(event.key==='Enter')doVerifyTOTP()">
+      </div>
+      <button class="submit-btn" onclick="doVerifyTOTP()">VERIFY & LOGIN</button>
+      <span class="back-link" onclick="resetToLogin()">← Back to login</span>
+      <div class="msg" id="totpMsg"></div>
+    </div>
+
+    <!-- TOTP SETUP STEP (first login) -->
+    <div id="setupStep">
+      <div class="step-title">SETUP 2FA</div>
+      <div class="step-desc">Scan the QR code with Google Authenticator,<br>then enter the code to activate.</div>
+      <div id="qrContainer" style="text-align:center;margin-bottom:16px"></div>
+      <div id="secretDisplay" style="font-family:'Share Tech Mono',monospace;font-size:0.54rem;color:#4a7a70;text-align:center;margin-bottom:16px;word-break:break-all"></div>
+      <div class="field">
+        <label>ENTER CODE TO ACTIVATE</label>
+        <input type="text" id="setupCode" class="totp-code-input" maxlength="6" placeholder="000000" inputmode="numeric" onkeydown="if(event.key==='Enter')doEnableTOTP()">
+      </div>
+      <button class="submit-btn" onclick="doEnableTOTP()">ACTIVATE AUTHENTICATOR</button>
+      <div class="msg" id="setupMsg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+const GOOGLE_CLIENT_ID = "141579954551-r6q36pitk0e2ob17632bggvumtebhv02.apps.googleusercontent.com";
+let pendingEmail = "";
+let tempToken    = "";
+
+/* ── Three.js particle background ── */
+(function(){
+  const canvas = document.getElementById("bg");
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  const scene  = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+  camera.position.z = 5;
+  const geo  = new THREE.BufferGeometry();
+  const count = 800;
+  const pos  = new Float32Array(count * 3);
+  for(let i=0;i<count*3;i++) pos[i]=(Math.random()-0.5)*20;
+  geo.setAttribute("position", new THREE.BufferAttribute(pos,3));
+  const mat  = new THREE.PointsMaterial({ color:0x00ffc8, size:0.04, transparent:true, opacity:0.6 });
+  const pts  = new THREE.Points(geo, mat);
+  scene.add(pts);
+  window.addEventListener("resize",()=>{
+    renderer.setSize(window.innerWidth,window.innerHeight);
+    camera.aspect=window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+  });
+  (function animate(){
+    requestAnimationFrame(animate);
+    pts.rotation.y += 0.0008;
+    pts.rotation.x += 0.0003;
+    renderer.render(scene,camera);
+  })();
+})();
+
+/* ── Google Sign-In ── */
+window.onload = () => {
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleGoogleLogin
+  });
+  google.accounts.id.renderButton(document.getElementById("googleSignIn"), {
+    theme: "filled_black", size: "large", width: "100%", text: "signin_with_google"
+  });
+};
+
+async function handleGoogleLogin(resp) {
+  const res = await fetch("/auth/google", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ credential: resp.credential, role: "analyst" })
+  });
+  const data = await res.json();
+  if (res.ok) {
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("role",  data.role);
+    localStorage.setItem("email", data.email);
+    window.location.href = "/index.html";
+  } else {
+    showMsg("loginMsg", data.error || "Google login failed", "error");
+  }
+}
+
+/* ── Tab switching ── */
+function switchTab(tab) {
+  document.querySelectorAll(".tab").forEach((t,i)=> t.classList.toggle("active", (i===0&&tab==="login")||(i===1&&tab==="register")));
+  document.getElementById("loginForm").classList.toggle("active",    tab==="login");
+  document.getElementById("registerForm").classList.toggle("active", tab==="register");
+}
+
+/* ── Show/hide steps ── */
+function showStep(step) {
+  document.getElementById("authTabs").style.display  = step==="auth"   ? "block" : "none";
+  document.getElementById("totpStep").style.display  = step==="totp"   ? "block" : "none";
+  document.getElementById("setupStep").style.display = step==="setup"  ? "block" : "none";
+}
+
+function resetToLogin() {
+  pendingEmail = ""; tempToken = "";
+  showStep("auth");
+}
+
+/* ── Msg helper ── */
+function showMsg(id, text, type="error") {
+  const el = document.getElementById(id);
+  el.textContent = text; el.className = "msg " + type; el.style.display = "block";
+}
+
+/* ── LOGIN ── */
+async function doLogin() {
+  const email    = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPass").value;
+  if (!email || !password) return showMsg("loginMsg","Fill in all fields","error");
+  document.getElementById("loginBtn").disabled = true;
+  document.getElementById("loginBtn").textContent = "AUTHENTICATING...";
+  try {
+    const res  = await fetch("/login", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email,password}) });
+    const data = await res.json();
+    if (!res.ok) { showMsg("loginMsg", data.error || "Login failed", "error"); return; }
+
+    pendingEmail = email;
+
+    if (data.requiresTOTP) {
+      showStep("totp");
+    } else if (data.requiresTOTPSetup) {
+      tempToken = data.token;
+      await setupTOTP(email);
+    } else {
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("role",  data.role);
+      localStorage.setItem("email", data.email);
+      window.location.href = "/index.html";
+    }
+  } catch(e) {
+    showMsg("loginMsg","Network error — try again","error");
+  } finally {
+    document.getElementById("loginBtn").disabled = false;
+    document.getElementById("loginBtn").textContent = "AUTHENTICATE";
+  }
+}
+
+/* ── VERIFY TOTP ── */
+async function doVerifyTOTP() {
+  const token = document.getElementById("totpCode").value.replace(/\s/g,"");
+  if (token.length !== 6) return showMsg("totpMsg","Enter 6-digit code","error");
+  const res  = await fetch("/verify-totp", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email:pendingEmail,token}) });
+  const data = await res.json();
+  if (res.ok) {
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("role",  data.role);
+    localStorage.setItem("email", data.email);
+    window.location.href = "/index.html";
+  } else {
+    showMsg("totpMsg", data.error || "Invalid code","error");
+  }
+}
+
+/* ── SETUP TOTP ── */
+async function setupTOTP(email) {
+  const res  = await fetch("/setup-totp", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email}) });
+  const data = await res.json();
+  if (res.ok) {
+    document.getElementById("qrContainer").innerHTML = `<img src="${data.qrCode}" style="width:180px;border:2px solid #0a3a28">`;
+    document.getElementById("secretDisplay").textContent = "Secret: " + data.secret;
+    showStep("setup");
+  } else {
+    showMsg("loginMsg", data.error || "TOTP setup failed","error");
+  }
+}
+
+/* ── ENABLE TOTP ── */
+async function doEnableTOTP() {
+  const token = document.getElementById("setupCode").value.replace(/\s/g,"");
+  if (token.length !== 6) return showMsg("setupMsg","Enter 6-digit code","error");
+  const res  = await fetch("/enable-totp", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email:pendingEmail,token}) });
+  const data = await res.json();
+  if (res.ok) {
+    showMsg("setupMsg","Authenticator activated! Logging in...","success");
+    setTimeout(async ()=>{
+      const r2   = await fetch("/verify-totp", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email:pendingEmail,token}) });
+      const d2   = await r2.json();
+      if (r2.ok) {
+        localStorage.setItem("token", d2.token);
+        localStorage.setItem("role",  d2.role);
+        localStorage.setItem("email", d2.email);
+        window.location.href = "/index.html";
+      } else { showMsg("setupMsg","Enter code again on next login","success"); }
+    }, 1500);
+  } else {
+    showMsg("setupMsg", data.error || "Invalid code","error");
+  }
+}
+
+/* ── REGISTER ── */
+async function doRegister() {
+  const email    = document.getElementById("regEmail").value.trim();
+  const password = document.getElementById("regPass").value;
+  const role     = document.getElementById("regRole").value;
+  if (!email || !password) return showMsg("regMsg","Fill in all fields","error");
+  if (password.length < 6)  return showMsg("regMsg","Password min 6 characters","error");
+  const res  = await fetch("/register", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email,password,role}) });
+  const data = await res.json();
+  if (res.ok) {
+    showMsg("regMsg","Account created! Please login.","success");
+    setTimeout(()=>switchTab("login"),1500);
+  } else {
+    showMsg("regMsg", data.error || "Registration failed","error");
+  }
+}
+</script>
+</body>
+</html>

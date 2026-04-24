@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FraudSys — Analytics</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:       #020d0a;
+    --bg2:      #041a12;
+    --bg3:      #071f16;
+    --border:   #0a3a28;
+    --accent:   #00ffc8;
+    --accent2:  #00cc9a;
+    --danger:   #ff4444;
+    --warn:     #ffaa00;
+    --safe:     #00cc88;
+    --muted:    #4a8a78;
+    --text:     #e0f4ef;
+    --mono:     'Share Tech Mono', monospace;
+    --sans:     'Rajdhani', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* ── Scanline overlay ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,200,0.015) 2px, rgba(0,255,200,0.015) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(90deg, #020d0a, #041a12);
+    position: sticky; top: 0; z-index: 100;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 18px;
+    color: var(--accent);
+    letter-spacing: 4px;
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  .logo span { color: var(--muted); font-size: 11px; letter-spacing: 2px; }
+
+  .header-right {
+    display: flex; gap: 12px; align-items: center;
+  }
+
+  .btn-back {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    cursor: pointer;
+    letter-spacing: 2px;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+
+  .btn-back:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Tabs ── */
+  .tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    background: var(--bg2);
+  }
+
+  .tab {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    padding: 14px 24px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    background: transparent;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    text-transform: uppercase;
+  }
+
+  .tab:hover { color: var(--accent); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── Main ── */
+  .main { padding: 32px; max-width: 1200px; margin: 0 auto; }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ── Section titles ── */
+  .section-title {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  /* ── Upload selector ── */
+  .upload-selector {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    align-items: end;
+    margin-bottom: 20px;
+  }
+
+  .field-group { display: flex; flex-direction: column; gap: 6px; }
+
+  label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+  }
+
+  select {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 10px 14px;
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+    width: 100%;
+  }
+
+  select:focus { border-color: var(--accent); }
+
+  .btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    padding: 11px 22px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: 700;
+  }
+
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+
+  .btn-danger {
+    background: transparent;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+  }
+
+  .btn-danger:hover { background: var(--danger); color: white; }
+
+  /* ── Stats grid ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .stat-box {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 16px;
+    text-align: center;
+  }
+
+  .stat-value {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--muted);
+  }
+
+  .color-accent  { color: var(--accent); }
+  .color-danger  { color: var(--danger); }
+  .color-warn    { color: var(--warn); }
+  .color-safe    { color: var(--safe); }
+  .color-muted   { color: var(--muted); }
+
+  /* ── Risk bar ── */
+  .risk-bar-wrap { margin-bottom: 20px; }
+  .risk-bar-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .risk-bar {
+    display: flex;
+    height: 22px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .risk-seg {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    transition: width 0.6s ease;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  /* ── Flags & locations table ── */
+  .data-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 11px; }
+  .data-table th {
+    background: var(--border);
+    color: var(--accent);
+    padding: 8px 12px;
+    text-align: left;
+    letter-spacing: 1px;
+    font-size: 10px;
+  }
+
+  .data-table td {
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .data-table tr:nth-child(even) td { background: var(--bg3); }
+  .data-table tr:hover td { background: #082918; }
+
+  /* ── Progress bar inline ── */
+  .inline-bar {
+    height: 6px;
+    background: var(--border);
+    margin-top: 4px;
+  }
+
+  .inline-bar-fill { height: 100%; transition: width 0.5s; }
+
+  /* ── Compare panels ── */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 200px 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .compare-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 20px;
+  }
+
+  .compare-card.a { border-top: 2px solid #00aaff; }
+  .compare-card.b { border-top: 2px solid #ff44aa; }
+
+  .compare-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    margin-bottom: 14px;
+  }
+
+  .compare-title.a { color: #00aaff; }
+  .compare-title.b { color: #ff44aa; }
+
+  .compare-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+
+  .compare-stat:last-child { border-bottom: none; }
+  .compare-stat-label { color: var(--muted); font-size: 10px; }
+
+  .delta-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .delta-item {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    text-align: center;
+    width: 100%;
+  }
+
+  .delta-value {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .delta-positive { color: var(--danger); }
+  .delta-negative { color: var(--safe); }
+  .delta-neutral  { color: var(--muted); }
+
+  .delta-label { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 1px; }
+
+  /* ── Verdict banner ── */
+  .verdict {
+    padding: 16px 24px;
+    border: 1px solid;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    font-family: var(--mono);
+  }
+
+  .verdict.IMPROVED    { border-color: var(--safe);   background: rgba(0,204,136,0.08); }
+  .verdict.DETERIORATED{ border-color: var(--danger); background: rgba(255,68,68,0.08); }
+  .verdict.STABLE      { border-color: var(--muted);  background: rgba(74,138,120,0.08); }
+  .verdict.NEUTRAL     { border-color: var(--border); background: transparent; }
+
+  .verdict-icon { font-size: 28px; }
+  .verdict-text { font-size: 14px; letter-spacing: 2px; }
+  .verdict-sub  { font-size: 10px; color: var(--muted); margin-top: 3px; letter-spacing: 1px; }
+
+  /* ── Loading / empty states ── */
+  .loading, .empty {
+    text-align: center;
+    padding: 48px;
+    font-family: var(--mono);
+    color: var(--muted);
+    letter-spacing: 2px;
+    font-size: 12px;
+    border: 1px solid var(--border);
+  }
+
+  .loading::after {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-left: 10px;
+    vertical-align: middle;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-msg {
+    background: rgba(255,68,68,0.1);
+    border: 1px solid var(--danger);
+    padding: 12px 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--danger);
+    margin-bottom: 16px;
+  }
+
+  /* ── Fade in ── */
+  .fade-in { animation: fadeIn 0.4s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  /* ── Compare selector ── */
+  .compare-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 12px;
+    align-items: end;
+    margin-bottom: 24px;
+  }
+
+  .vs-badge {
+    font-family: var(--mono);
+    font-size: 20px;
+    color: var(--border);
+    text-align: center;
+    padding-bottom: 8px;
+  }
+
+  /* ── Flag comparison ── */
+  .flag-compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 12px;
+  }
+
+  .flag-list-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+  }
+
+  .flag-list-title.a { color: #00aaff; }
+  .flag-list-title.b { color: #ff44aa; }
+
+  .flag-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 10px;
+  }
+
+  .flag-name { color: var(--text); }
+  .flag-pct  { color: var(--accent); }
+
+  /* ── Incident bars ── */
+  .incident-row { margin-bottom: 8px; }
+  .incident-name { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+  .incident-bar-wrap { display: flex; gap: 4px; align-items: center; }
+  .incident-bar { height: 12px; min-width: 2px; transition: width 0.5s; }
+  .incident-count { font-family: var(--mono); font-size: 10px; color: var(--text); }
+
+  @media (max-width: 768px) {
+    .compare-grid { grid-template-columns: 1fr; }
+    .compare-selector { grid-template-columns: 1fr; }
+    .flag-compare { grid-template-columns: 1fr; }
+    .main { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="logo">
+    FRAUDSYS <span>// ANALYTICS</span>
+  </div>
+  <div class="header-right">
+    <a href="/dashboard.html" class="btn-back">← DASHBOARD</a>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('pdf')">📄 PDF EXPORT</button>
+  <button class="tab" onclick="switchTab('compare')">📊 COMPARATIVE ANALYSIS</button>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- ══════════════ PDF EXPORT PANEL ══════════════ -->
+  <div class="panel active" id="panel-pdf">
+    <div class="section-title">PDF REPORT EXPORT</div>
+
+    <div class="card">
+      <div class="upload-selector">
+        <div class="field-group">
+          <label>SELECT UPLOAD</label>
+          <select id="pdf-upload-select">
+            <option value="">— Loading uploads... —</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="pdf-btn" onclick="generatePDF()" disabled>
+          ⬇ EXPORT PDF
+        </button>
+      </div>
+
+      <div id="pdf-preview"></div>
+    </div>
+  </div>
+
+  <!-- ══════════════ COMPARE PANEL ══════════════ -->
+  <div class="panel" id="panel-compare">
+    <div class="section-title">COMPARATIVE UPLOAD ANALYSIS</div>
+
+    <div class="card">
+      <div class="compare-selector">
+        <div class="field-group">
+          <label>UPLOAD A (BASELINE)</label>
+          <select id="cmp-a">
+            <option value="">— Select upload A —</option>
+          </select>
+        </div>
+        <div class="vs-badge">VS</div>
+        <div class="field-group">
+          <label>UPLOAD B (COMPARISON)</label>
+          <select id="cmp-b">
+            <option value="">— Select upload B —</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="cmp-btn" onclick="runCompare()" disabled>
+          ⚡ COMPARE
+        </button>
+      </div>
+
+      <div id="compare-result"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const API   = "";  // same origin
+  const TOKEN = localStorage.getItem("token");
+
+  /* ── Auth headers ── */
+  const headers = () => ({ "Authorization": `Bearer ${TOKEN}`, "Content-Type": "application/json" });
+
+  /* ── Tab switching ── */
+  function switchTab(name) {
+    document.querySelectorAll(".tab").forEach((t, i) => t.classList.toggle("active", ["pdf","compare"][i] === name));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    document.getElementById(`panel-${name}`).classList.add("active");
+  }
+
+  /* ── Load upload history ── */
+  async function loadUploads() {
+    try {
+      const r    = await fetch(`${API}/upload-history`, { headers: headers() });
+      const data = await r.json();
+
+      const makeOption = (u) => {
+        const d    = new Date(u.uploadedAt).toLocaleDateString();
+        const text = `${u.filename} — ${u.totalRows?.toLocaleString() || 0} rows (${d})`;
+        return `<option value="${u._id}">${text}</option>`;
+      };
+
+      const opts = data.map(makeOption).join("");
+      document.getElementById("pdf-upload-select").innerHTML = `<option value="">— Select upload —</option>${opts}`;
+      document.getElementById("cmp-a").innerHTML = `<option value="">— Select upload A —</option>${opts}`;
+      document.getElementById("cmp-b").innerHTML = `<option value="">— Select upload B —</option>${opts}`;
+
+      // Enable buttons on change
+      document.getElementById("pdf-upload-select").addEventListener("change", e => {
+        document.getElementById("pdf-btn").disabled = !e.target.value;
+        if (e.target.value) loadPDFPreview(e.target.value);
+        else document.getElementById("pdf-preview").innerHTML = "";
+      });
+
+      const checkCmp = () => {
+        const a = document.getElementById("cmp-a").value;
+        const b = document.getElementById("cmp-b").value;
+        document.getElementById("cmp-btn").disabled = !a || !b || a === b;
+      };
+      document.getElementById("cmp-a").addEventListener("change", checkCmp);
+      document.getElementById("cmp-b").addEventListener("change", checkCmp);
+
+    } catch (err) {
+      console.error("Failed to load uploads:", err);
+    }
+  }
+
+  /* ── PDF Preview (stats summary before export) ── */
+  async function loadPDFPreview(uploadId) {
+    const el = document.getElementById("pdf-preview");
+    el.innerHTML = `<div class="loading">LOADING UPLOAD STATS</div>`;
+    try {
+      const [histR, resultsR] = await Promise.all([
+        fetch(`${API}/upload-history`, { headers: headers() }),
+        fetch(`${API}/results?uploadId=${uploadId}&limit=5000`, { headers: headers() })
+      ]);
+      const history = await histR.json();
+      const results = await resultsR.json();
+
+      const upload  = history.find(u => u._id === uploadId);
+      if (!upload) { el.innerHTML = `<div class="empty">Upload not found</div>`; return; }
+
+      const total     = results.length;
+      const high      = results.filter(r => r.risk === "High").length;
+      const medium    = results.filter(r => r.risk === "Medium").length;
+      const low       = results.filter(r => r.risk === "Low").length;
+      const anomalies = results.filter(r => r.anomaly?.isAnomaly).length;
+      const avgScore  = total ? (results.reduce((s, r) => s + (r.riskScore || 0), 0) / total).toFixed(3) : 0;
+      const highPct   = total ? ((high / total) * 100).toFixed(1) : 0;
+      const medPct    = total ? ((medium / total) * 100).toFixed(1) : 0;
+      const lowPct    = total ? ((low / total) * 100).toFixed(1) : 0;
+
+      // Top flags
+      const flagCount = {};
+      results.forEach(r => (r.flags || []).forEach(f => { flagCount[f] = (flagCount[f] || 0) + 1; }));
+      const topFlags  = Object.entries(flagCount).sort((a, b) => b[1] - a[1]).slice(0, 6);
+      const maxFlag   = topFlags[0]?.[1] || 1;
+
+      el.innerHTML = `
+        <div class="fade-in">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:14px;">
+            REPORT PREVIEW — ${upload.filename}
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-box">
+              <div class="stat-value color-accent">${total.toLocaleString()}</div>
+              <div class="stat-label">TOTAL RECORDS</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value color-danger">${high.toLocaleString()}</div>
+              <div class="stat-label">HIGH RISK (${highPct}%)</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value color-warn">${medium.toLocaleString()}</div>
+              <div class="stat-label">MEDIUM RISK</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value color-safe">${low.toLocaleString()}</div>
+              <div class="stat-label">LOW RISK</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value" style="color:#ff8800">${anomalies.toLocaleString()}</div>
+              <div class="stat-label">ANOMALIES</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value color-accent">${avgScore}</div>
+              <div class="stat-label">AVG RISK SCORE</div>
+            </div>
+          </div>
+
+          <div class="risk-bar-wrap">
+            <div class="risk-bar-label">RISK DISTRIBUTION</div>
+            <div class="risk-bar">
+              <div class="risk-seg" style="width:${highPct}%;background:var(--danger);color:white;">
+                ${highPct > 8 ? highPct + '%' : ''}
+              </div>
+              <div class="risk-seg" style="width:${medPct}%;background:var(--warn);color:#111;">
+                ${medPct > 8 ? medPct + '%' : ''}
+              </div>
+              <div class="risk-seg" style="width:${lowPct}%;background:var(--safe);color:#111;">
+                ${lowPct > 8 ? lowPct + '%' : ''}
+              </div>
+            </div>
+            <div style="display:flex;gap:16px;margin-top:6px;font-family:var(--mono);font-size:9px;">
+              <span style="color:var(--danger)">■ HIGH ${highPct}%</span>
+              <span style="color:var(--warn)">■ MEDIUM ${medPct}%</span>
+              <span style="color:var(--safe)">■ LOW ${lowPct}%</span>
+            </div>
+          </div>
+
+          ${topFlags.length > 0 ? `
+          <div style="margin-top:16px;">
+            <div style="font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--muted);margin-bottom:8px;">TOP FRAUD INDICATORS</div>
+            <table class="data-table">
+              <thead><tr><th>FLAG</th><th>COUNT</th><th>FREQUENCY</th></tr></thead>
+              <tbody>
+                ${topFlags.map(([flag, count]) => `
+                  <tr>
+                    <td>${flag}</td>
+                    <td style="color:var(--danger)">${count.toLocaleString()}</td>
+                    <td>
+                      <div class="inline-bar">
+                        <div class="inline-bar-fill" style="width:${(count/maxFlag*100).toFixed(0)}%;background:var(--accent)"></div>
+                      </div>
+                    </td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>` : ""}
+
+          <div style="margin-top:16px;padding:12px;background:var(--bg3);border:1px solid var(--border);font-family:var(--mono);font-size:10px;color:var(--muted);">
+            ⬇ The exported PDF will include: upload summary, risk distribution, top fraud indicators, top locations by high-risk claims, and a sample of ${Math.min(high, 15)} high-risk records.
+          </div>
+        </div>`;
+    } catch (err) {
+      el.innerHTML = `<div class="error-msg">Failed to load preview: ${err.message}</div>`;
+    }
+  }
+
+  /* ── Generate PDF ── */
+  async function generatePDF() {
+    const uploadId = document.getElementById("pdf-upload-select").value;
+    if (!uploadId) return;
+    const btn = document.getElementById("pdf-btn");
+    btn.disabled = true;
+    btn.textContent = "GENERATING...";
+    try {
+      const response = await fetch(`${API}/report/${uploadId}`, { headers: headers() });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Failed");
+      }
+      const blob = await response.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `fraudsys-report-${uploadId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      document.getElementById("pdf-preview").innerHTML =
+        `<div class="error-msg">Export failed: ${err.message}</div>` +
+        document.getElementById("pdf-preview").innerHTML;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "⬇ EXPORT PDF";
+    }
+  }
+
+  /* ── Run comparison ── */
+  async function runCompare() {
+    const a   = document.getElementById("cmp-a").value;
+    const b   = document.getElementById("cmp-b").value;
+    const el  = document.getElementById("compare-result");
+    const btn = document.getElementById("cmp-btn");
+
+    el.innerHTML = `<div class="loading">RUNNING ANALYSIS</div>`;
+    btn.disabled = true;
+
+    try {
+      const r    = await fetch(`${API}/compare?a=${a}&b=${b}`, { headers: headers() });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Comparison failed");
+
+      const { a: sA, b: sB, delta, verdict } = data;
+
+      const verdictConfig = {
+        IMPROVED:     { icon: "📉", text: "FRAUD RATE IMPROVED", sub: `High-risk rate dropped ${Math.abs(delta.highPct)}% from baseline`, color: "var(--safe)" },
+        DETERIORATED: { icon: "📈", text: "FRAUD RATE DETERIORATED", sub: `High-risk rate increased ${delta.highPct}% above baseline`, color: "var(--danger)" },
+        STABLE:       { icon: "📊", text: "FRAUD RATE STABLE", sub: "No significant change detected between uploads", color: "var(--muted)" },
+        NEUTRAL:      { icon: "🔍", text: "INCONCLUSIVE", sub: "Insufficient delta to determine trend", color: "var(--muted)" }
+      };
+
+      const vc = verdictConfig[verdict];
+
+      const deltaSign  = (v, invert = false) => {
+        if (v === 0) return "delta-neutral";
+        const isPositive = invert ? v < 0 : v > 0;
+        return isPositive ? "delta-positive" : "delta-negative";
+      };
+
+      const fmtDelta = (v) => (v > 0 ? "+" : "") + v;
+
+      const maxIncident = Math.max(
+        ...[...sA.incidentBreakdown, ...sB.incidentBreakdown].map(i => i.total), 1
+      );
+
+      el.innerHTML = `
+        <div class="fade-in">
+
+          <!-- Verdict -->
+          <div class="verdict ${verdict}">
+            <span class="verdict-icon">${vc.icon}</span>
+            <div>
+              <div class="verdict-text" style="color:${vc.color}">${vc.text}</div>
+              <div class="verdict-sub">${vc.sub}</div>
+            </div>
+          </div>
+
+          <!-- Side by side stats -->
+          <div class="compare-grid">
+            <!-- Upload A -->
+            <div class="compare-card a">
+              <div class="compare-title a">▶ UPLOAD A — BASELINE</div>
+              <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:12px;">${sA.filename}</div>
+              ${[
+                ["TOTAL RECORDS",  sA.total.toLocaleString(),        "var(--text)"],
+                ["HIGH RISK",      `${sA.high} (${sA.highPct}%)`,    "var(--danger)"],
+                ["MEDIUM RISK",    `${sA.medium} (${sA.mediumPct}%)`,"var(--warn)"],
+                ["LOW RISK",       `${sA.low} (${sA.lowPct}%)`,      "var(--safe)"],
+                ["ANOMALIES",      `${sA.anomalies} (${sA.anomalyPct}%)`, "#ff8800"],
+                ["AVG RISK SCORE", sA.avgScore,                      "var(--accent)"],
+                ["AVG CONFIDENCE", `${(sA.avgConf*100).toFixed(1)}%`,"var(--accent2)"],
+              ].map(([l, v, c]) => `
+                <div class="compare-stat">
+                  <span class="compare-stat-label">${l}</span>
+                  <span style="color:${c};font-family:var(--mono);font-size:12px;">${v}</span>
+                </div>
+              `).join("")}
+            </div>
+
+            <!-- Delta column -->
+            <div class="delta-col">
+              <div style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:1px;text-align:center;">DELTA</div>
+              ${[
+                ["RECORDS",   fmtDelta(delta.total),    deltaSign(delta.total, true)],
+                ["HIGH RISK", fmtDelta(delta.high),     deltaSign(delta.high)],
+                ["HIGH %",    fmtDelta(delta.highPct)+"%", deltaSign(delta.highPct)],
+                ["ANOMALIES", fmtDelta(delta.anomalies),deltaSign(delta.anomalies)],
+                ["AVG SCORE", fmtDelta(delta.avgScore), deltaSign(delta.avgScore)],
+              ].map(([l, v, cls]) => `
+                <div class="delta-item">
+                  <div class="delta-value ${cls}">${v}</div>
+                  <div class="delta-label">${l}</div>
+                </div>
+              `).join("")}
+            </div>
+
+            <!-- Upload B -->
+            <div class="compare-card b">
+              <div class="compare-title b">▶ UPLOAD B — COMPARISON</div>
+              <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:12px;">${sB.filename}</div>
+              ${[
+                ["TOTAL RECORDS",  sB.total.toLocaleString(),        "var(--text)"],
+                ["HIGH RISK",      `${sB.high} (${sB.highPct}%)`,    "var(--danger)"],
+                ["MEDIUM RISK",    `${sB.medium} (${sB.mediumPct}%)`,"var(--warn)"],
+                ["LOW RISK",       `${sB.low} (${sB.lowPct}%)`,      "var(--safe)"],
+                ["ANOMALIES",      `${sB.anomalies} (${sB.anomalyPct}%)`, "#ff8800"],
+                ["AVG RISK SCORE", sB.avgScore,                      "var(--accent)"],
+                ["AVG CONFIDENCE", `${(sB.avgConf*100).toFixed(1)}%`,"var(--accent2)"],
+              ].map(([l, v, c]) => `
+                <div class="compare-stat">
+                  <span class="compare-stat-label">${l}</span>
+                  <span style="color:${c};font-family:var(--mono);font-size:12px;">${v}</span>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+
+          <!-- Risk distribution bars -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+            ${[["A", sA, "#00aaff"], ["B", sB, "#ff44aa"]].map(([lbl, s, col]) => `
+              <div>
+                <div style="font-family:var(--mono);font-size:10px;color:${col};letter-spacing:2px;margin-bottom:6px;">UPLOAD ${lbl} DISTRIBUTION</div>
+                <div class="risk-bar">
+                  <div class="risk-seg" style="width:${s.highPct}%;background:var(--danger);color:white;">${s.highPct > 8 ? s.highPct+'%' : ''}</div>
+                  <div class="risk-seg" style="width:${s.mediumPct}%;background:var(--warn);color:#111;">${s.mediumPct > 8 ? s.mediumPct+'%' : ''}</div>
+                  <div class="risk-seg" style="width:${s.lowPct}%;background:var(--safe);color:#111;">${s.lowPct > 8 ? s.lowPct+'%' : ''}</div>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+
+          <!-- Top flags comparison -->
+          ${(sA.topFlags.length > 0 || sB.topFlags.length > 0) ? `
+          <div style="margin-bottom:20px;">
+            <div class="section-title" style="margin-bottom:12px;">TOP FRAUD FLAGS COMPARISON</div>
+            <div class="flag-compare">
+              <div>
+                <div class="flag-list-title a">▶ UPLOAD A</div>
+                ${sA.topFlags.map(f => `
+                  <div class="flag-row">
+                    <span class="flag-name">${f.flag}</span>
+                    <span class="flag-pct">${f.count} (${f.pct}%)</span>
+                  </div>
+                `).join("") || '<div style="color:var(--muted);font-family:var(--mono);font-size:10px;">No flags</div>'}
+              </div>
+              <div>
+                <div class="flag-list-title b">▶ UPLOAD B</div>
+                ${sB.topFlags.map(f => `
+                  <div class="flag-row">
+                    <span class="flag-name">${f.flag}</span>
+                    <span class="flag-pct">${f.count} (${f.pct}%)</span>
+                  </div>
+                `).join("") || '<div style="color:var(--muted);font-family:var(--mono);font-size:10px;">No flags</div>'}
+              </div>
+            </div>
+          </div>` : ""}
+
+          <!-- Incident breakdown -->
+          ${(sA.incidentBreakdown.length > 0 || sB.incidentBreakdown.length > 0) ? `
+          <div style="margin-bottom:20px;">
+            <div class="section-title" style="margin-bottom:12px;">INCIDENT TYPE BREAKDOWN</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+              ${[["A", sA.incidentBreakdown, "#00aaff"], ["B", sB.incidentBreakdown, "#ff44aa"]].map(([lbl, data, col]) => `
+                <div>
+                  <div style="font-family:var(--mono);font-size:10px;color:${col};letter-spacing:2px;margin-bottom:8px;">UPLOAD ${lbl}</div>
+                  ${data.map(inc => `
+                    <div class="incident-row">
+                      <div class="incident-name">${inc.type}</div>
+                      <div class="incident-bar-wrap">
+                        <div class="incident-bar" style="width:${(inc.total/maxIncident*180).toFixed(0)}px;background:${col};opacity:0.6"></div>
+                        <span class="incident-count">${inc.total} (${inc.high} high)</span>
+                      </div>
+                    </div>
+                  `).join("")}
+                </div>
+              `).join("")}
+            </div>
+          </div>` : ""}
+
+          <!-- Top locations -->
+          ${(sA.topLocations.length > 0 || sB.topLocations.length > 0) ? `
+          <div>
+            <div class="section-title" style="margin-bottom:12px;">TOP LOCATIONS COMPARISON</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+              ${[["A", sA.topLocations, "#00aaff"], ["B", sB.topLocations, "#ff44aa"]].map(([lbl, locs, col]) => `
+                <div>
+                  <div style="font-family:var(--mono);font-size:10px;color:${col};letter-spacing:2px;margin-bottom:8px;">UPLOAD ${lbl}</div>
+                  <table class="data-table">
+                    <thead><tr><th>LOCATION</th><th>TOTAL</th><th>HIGH%</th></tr></thead>
+                    <tbody>
+                      ${locs.map(l => `
+                        <tr>
+                          <td>${l.location}</td>
+                          <td>${l.total}</td>
+                          <td style="color:${l.pct >= 50 ? 'var(--danger)' : l.pct >= 25 ? 'var(--warn)' : 'var(--safe)'}">${l.pct}%</td>
+                        </tr>
+                      `).join("")}
+                    </tbody>
+                  </table>
+                </div>
+              `).join("")}
+            </div>
+          </div>` : ""}
+
+        </div>`;
+
+    } catch (err) {
+      el.innerHTML = `<div class="error-msg">Analysis failed: ${err.message}</div>`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  /* ── Init ── */
+  loadUploads();
+</script>
+</body>
+</html>
